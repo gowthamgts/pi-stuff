@@ -1,0 +1,47 @@
+{
+  "name": "pi-silicon-valley",
+  "version": "1.0.1",
+  "description": "A random Silicon Valley quote at the start of every pi session.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Gowtham Gopalakrishnan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gowthamgts/pi-stuff.git",
+    "directory": "extensions/silicon-valley"
+  },
+  "homepage": "https://github.com/gowthamgts/pi-stuff/tree/main/extensions/silicon-valley#readme",
+  "bugs": {
+    "url": "https://github.com/gowthamgts/pi-stuff/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "pi-coding-agent",
+    "silicon-valley",
+    "quotes"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "index.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check:load": "pi --offline --no-extensions -e ./index.ts --list-models openai-codex"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
