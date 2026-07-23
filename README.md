@@ -28,7 +28,7 @@ Install a published extension from npm:
 
 ```sh
 pi install npm:@gowthamgts/pi-codex-fast-mode
-pi install npm:pi-silicon-valley
+pi install npm:@gowthamgts/pi-silicon-valley
 ```
 
 ## Add an extension

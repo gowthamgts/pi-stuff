@@ -7,7 +7,7 @@ A [pi](https://pi.dev) package that displays a random quote from *Silicon Valley
 Install from npm:
 
 ```sh
-pi install npm:pi-silicon-valley
+pi install npm:@gowthamgts/pi-silicon-valley
 ```
 
 Install from this checkout:

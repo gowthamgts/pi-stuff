@@ -1,5 +1,5 @@
 {
-  "name": "pi-silicon-valley",
+  "name": "@gowthamgts/pi-silicon-valley",
   "version": "1.0.1",
   "description": "A random Silicon Valley quote at the start of every pi session.",
   "type": "module",
