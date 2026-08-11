@@ -3,6 +3,12 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 export const FAST_MODE_SERVICE_TIER = "priority";
 const STATE_ENTRY_TYPE = "codex-fast-mode-state";
 
+/**
+ * Status slot shared with the codex-usage extension. The codex-usage footer
+ * inlines this status into the stats line, so it is not just a footer note.
+ */
+export const CODEX_FOOTER_STATUS_KEY = "codex-custom-footer";
+
 export interface ModelDescriptor {
 	provider?: unknown;
 	api?: unknown;
@@ -78,7 +84,7 @@ export default function codexFastMode(pi: ExtensionAPI) {
 				? "⚡ Codex fast"
 				: "○ Codex standard"
 			: undefined;
-		ctx.ui.setStatus("codex-fast-mode", status);
+		ctx.ui.setStatus(CODEX_FOOTER_STATUS_KEY, status);
 	};
 
 	const describeStatus = (model: ModelDescriptor | undefined) => {
@@ -103,7 +109,7 @@ export default function codexFastMode(pi: ExtensionAPI) {
 
 	pi.registerCommand("fast", {
 		description: "Control Codex fast mode: /fast on|off|status",
-		handler: (args, ctx) => {
+		handler: async (args, ctx) => {
 			const action = args.trim().toLowerCase() || "status";
 
 			if (action === "status") {
