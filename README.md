@@ -7,6 +7,8 @@ A collection of pi extensions. Each extension lives in its own independently ins
 | Extension | Description |
 | --- | --- |
 | [`codex-fast-mode`](./extensions/codex-fast-mode) | Controls fast and standard modes for supported OpenAI Codex models. |
+| [`codex-usage`](./extensions/codex-usage) | Displays remaining Codex subscription quota in the footer. |
+| [`git-status`](./extensions/git-status) | Displays branch and working-tree status alongside token usage in the footer. |
 | [`silicon-valley`](./extensions/silicon-valley) | Displays a random *Silicon Valley* quote when a pi session starts. |
 
 ## Install
@@ -21,6 +23,8 @@ Install one extension from this checkout:
 
 ```sh
 pi install ./extensions/codex-fast-mode
+pi install ./extensions/codex-usage
+pi install ./extensions/git-status
 pi install ./extensions/silicon-valley
 ```
 
@@ -28,6 +32,8 @@ Install a published extension from npm:
 
 ```sh
 pi install npm:@gowthamgts/pi-codex-fast-mode
+pi install npm:@gowthamgts/pi-codex-usage
+pi install npm:@gowthamgts/pi-git-status
 pi install npm:@gowthamgts/pi-silicon-valley
 ```
 
