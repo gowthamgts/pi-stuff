@@ -1,0 +1,50 @@
+{
+  "name": "@gowthamgts/pi-git-commit",
+  "version": "1.0.0",
+  "description": "A pi extension that stages changes and creates a concise AI-written Git commit.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Gowtham Gopalakrishnan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gowthamgts/pi-stuff.git",
+    "directory": "extensions/git-commit"
+  },
+  "homepage": "https://github.com/gowthamgts/pi-stuff/tree/main/extensions/git-commit#readme",
+  "bugs": {
+    "url": "https://github.com/gowthamgts/pi-stuff/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "pi-coding-agent",
+    "git",
+    "git-commit",
+    "developer-tools",
+    "ai"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "index.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.ts",
+    "check:load": "pi --offline --no-extensions -e ./index.ts --list-models openai-codex"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

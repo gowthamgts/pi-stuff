@@ -9,8 +9,8 @@ default:
 dev:
     pnpm install
 
-# Set up dependencies, run tests, and verify that every extension loads in pi.
-check: dev
+# Run tests and verify that every extension loads in pi.
+check:
     pnpm test
     pnpm run check:load
 
@@ -60,16 +60,34 @@ pack-dry-run: check
 
 # Run the full release validation without publishing.
 release-dry-run: check
-    npm whoami
-    pnpm publish -r --dry-run --no-git-checks
-
-# Publish all versions not already on npm; pass a current npm 2FA code.
-release otp: check
     #!/usr/bin/env bash
     set -euo pipefail
-    [[ "$otp" =~ ^[0-9]{6}$ ]] || {
-      echo "usage: just release <six-digit-npm-otp>" >&2
-      exit 2
-    }
     npm whoami
-    NPM_CONFIG_OTP="$otp" pnpm publish -r --publish-branch main
+    for manifest in extensions/*/package.json; do
+      directory=${manifest%/package.json}
+      name=$(node -p "require('./$manifest').name")
+      version=$(node -p "require('./$manifest').version")
+      if npm view "$name@$version" version >/dev/null 2>&1; then
+        echo "==> Skipping $name@$version (already published)"
+      else
+        echo "==> Previewing $name@$version"
+        (cd "$directory" && npm publish --dry-run)
+      fi
+    done
+
+# Publish every workspace version not already on npm.
+release: check
+    #!/usr/bin/env bash
+    set -euo pipefail
+    npm whoami
+    for manifest in extensions/*/package.json; do
+      directory=${manifest%/package.json}
+      name=$(node -p "require('./$manifest').name")
+      version=$(node -p "require('./$manifest').version")
+      if npm view "$name@$version" version >/dev/null 2>&1; then
+        echo "==> Skipping $name@$version (already published)"
+      else
+        echo "==> Publishing $name@$version"
+        (cd "$directory" && npm publish)
+      fi
+    done

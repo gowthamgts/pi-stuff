@@ -23,6 +23,12 @@ importers:
         specifier: '*'
         version: 0.81.1
 
+  extensions/git-commit:
+    dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '*'
+        version: 0.81.1(ws@8.21.1)(zod@4.4.3)
+
   extensions/git-status:
     dependencies:
       '@earendil-works/pi-coding-agent':

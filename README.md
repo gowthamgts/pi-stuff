@@ -8,6 +8,7 @@ A collection of pi extensions. Each extension lives in its own independently ins
 | --- | --- |
 | [`codex-fast-mode`](./extensions/codex-fast-mode) | Controls fast and standard modes for supported OpenAI Codex models. |
 | [`codex-usage`](./extensions/codex-usage) | Displays remaining Codex subscription quota in the footer. |
+| [`git-commit`](./extensions/git-commit) | Stages changes and commits them with a short AI-written subject. |
 | [`git-status`](./extensions/git-status) | Displays branch, worktree, and file status alongside token usage in the footer. |
 | [`silicon-valley`](./extensions/silicon-valley) | Displays a random *Silicon Valley* quote when a pi session starts. |
 
@@ -24,6 +25,7 @@ Install one extension from this checkout:
 ```sh
 pi install ./extensions/codex-fast-mode
 pi install ./extensions/codex-usage
+pi install ./extensions/git-commit
 pi install ./extensions/git-status
 pi install ./extensions/silicon-valley
 ```
@@ -33,6 +35,7 @@ Install a published extension from npm:
 ```sh
 pi install npm:@gowthamgts/pi-codex-fast-mode
 pi install npm:@gowthamgts/pi-codex-usage
+pi install npm:@gowthamgts/pi-git-commit
 pi install npm:@gowthamgts/pi-git-status
 pi install npm:@gowthamgts/pi-silicon-valley
 ```
@@ -43,6 +46,7 @@ Restart pi or run `/reload` after installing an extension.
 
 - **Codex fast mode:** Select a supported `openai-codex` model, then use `/fast on`, `/fast off`, or `/fast status`. New sessions default to fast mode.
 - **Codex usage:** Sign in to the `openai-codex` provider with ChatGPT. The footer automatically shows the remaining weekly quota and, at 25% or below, the reset countdown.
+- **Git commit:** Run `/commit` in a Git repository to stage all changes and commit them with a lowercase AI-written subject of at most 40 characters.
 - **Git status:** Start pi inside a Git repository. The footer automatically shows the branch, ahead/behind and file counts. In a linked worktree it also shows `@ <worktree-directory>`; the main worktree keeps the branch-only display.
 - **Silicon Valley:** A random quote appears whenever a new pi session starts.
 
@@ -72,7 +76,7 @@ Set up the workspace dependencies:
 just dev
 ```
 
-Run checks across all extension workspaces. This also runs the development setup stage first:
+Run checks across all extension workspaces:
 
 ```sh
 just check
@@ -93,10 +97,12 @@ Bump an extension, then review and commit the change:
 just bump codex-usage patch
 ```
 
-From a clean `main` branch, publish every workspace version that is not already on npm. Pass a current six-digit npm 2FA code:
+From a clean `main` branch, publish every workspace version that is not already on npm in one run:
 
 ```sh
-just release 123456
+just release
 ```
 
-`pnpm publish -r` automatically skips package versions that are already published. Run `just --list` to see the remaining release helpers.
+The recipe runs the validation pipeline, skips versions that are already published, and invokes `npm publish` directly for each remaining extension.
+
+Run `just --list` to see the remaining release helpers.
