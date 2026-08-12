@@ -37,6 +37,17 @@ pi install npm:@gowthamgts/pi-git-status
 pi install npm:@gowthamgts/pi-silicon-valley
 ```
 
+Restart pi or run `/reload` after installing an extension.
+
+## Usage
+
+- **Codex fast mode:** Select a supported `openai-codex` model, then use `/fast on`, `/fast off`, or `/fast status`. New sessions default to fast mode.
+- **Codex usage:** Sign in to the `openai-codex` provider with ChatGPT. The footer automatically shows the remaining weekly quota and, at 25% or below, the reset countdown.
+- **Git status:** Start pi inside a Git repository. The footer automatically shows the branch, ahead/behind and file counts. In a linked worktree it also shows `@ <worktree-directory>`; the main worktree keeps the branch-only display.
+- **Silicon Valley:** A random quote appears whenever a new pi session starts.
+
+`codex-usage` and `git-status` both provide a custom footer, and pi displays only one custom footer at a time. Install or enable the one you want to use. See each extension's linked README for display details, authentication notes, and supported models.
+
 ## Add an extension
 
 Create a separate directory for every extension:
