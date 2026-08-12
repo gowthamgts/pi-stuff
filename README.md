@@ -66,9 +66,37 @@ Name publishable packages `@gowthamgts/<package-name>`, configure public scoped 
 
 ## Development
 
-Run checks across all extension workspaces:
+Set up the workspace dependencies:
 
 ```sh
-pnpm test
-pnpm run check:load
+just dev
 ```
+
+Run checks across all extension workspaces. This also runs the development setup stage first:
+
+```sh
+just check
+```
+
+## Release
+
+Check local versions against npm and preview the release:
+
+```sh
+just status
+just release-dry-run
+```
+
+Bump an extension, then review and commit the change:
+
+```sh
+just bump codex-usage patch
+```
+
+From a clean `main` branch, publish every workspace version that is not already on npm. Pass a current six-digit npm 2FA code:
+
+```sh
+just release 123456
+```
+
+`pnpm publish -r` automatically skips package versions that are already published. Run `just --list` to see the remaining release helpers.
