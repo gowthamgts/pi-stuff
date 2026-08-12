@@ -5,6 +5,7 @@ import gitStatus, {
 	formatGitStatus,
 	formatUsageStats,
 	parseGitStatus,
+	parseGitWorktree,
 } from "../index.ts";
 
 test("parses a clean tracked branch", () => {
@@ -82,6 +83,32 @@ test("preserves the branch name for a repository without commits", () => {
 	assert.equal(status.changed, 1);
 });
 
+test("identifies linked worktrees without labeling the main worktree", () => {
+	assert.equal(parseGitWorktree([
+		"/repo",
+		"/repo/.git",
+		"/repo/.git",
+	].join("\n")), undefined);
+
+	assert.equal(parseGitWorktree([
+		"/worktrees/pi-stuff-auth",
+		"/repo/.git/worktrees/pi-stuff-auth",
+		"/repo/.git",
+	].join("\n")), "pi-stuff-auth");
+});
+
+test("includes the linked worktree in formatted status", () => {
+	const status = {
+		...parseGitStatus([
+			"# branch.oid 0123456789abcdef",
+			"# branch.head feature/auth",
+		].join("\n")),
+		worktree: "pi-stuff-auth",
+	};
+
+	assert.equal(formatGitStatus(status), "git feature/auth @ pi-stuff-auth • clean");
+});
+
 test("collects and formats usage totals", () => {
 	const totals = collectUsageTotals([
 		{
@@ -120,14 +147,20 @@ test("renders Git status on the token-usage footer line", async () => {
 		on(event: string, handler: (event: unknown, ctx: any) => unknown) {
 			handlers.set(event, handler);
 		},
-		exec: async () => ({
-			stdout: [
-				"# branch.oid 0123456789abcdef",
-				"# branch.head main",
-				"# branch.ab +2 -0",
-				"1 M. N... 100644 100644 100644 abc abc staged.ts",
-				"? untracked.ts",
-			].join("\n"),
+		exec: async (_command: string, args: string[]) => ({
+			stdout: args[0] === "status"
+				? [
+					"# branch.oid 0123456789abcdef",
+					"# branch.head main",
+					"# branch.ab +2 -0",
+					"1 M. N... 100644 100644 100644 abc abc staged.ts",
+					"? untracked.ts",
+				].join("\n")
+				: [
+					"/worktrees/pi-stuff-main",
+					"/repo/.git/worktrees/pi-stuff-main",
+					"/repo/.git",
+				].join("\n"),
 			stderr: "",
 			code: 0,
 			killed: false,
@@ -173,7 +206,7 @@ test("renders Git status on the token-usage footer line", async () => {
 	assert.equal(lines?.length, 2);
 	assert.equal(lines?.[0], "/repo");
 	assert.ok(lines?.[1].startsWith("↑1.2k ↓34 12.5%/128k"));
-	assert.ok(lines?.[1].endsWith("gpt-test • high • git main ↑2 • 2 changed • 1 staged • 1 untracked"));
+	assert.ok(lines?.[1].endsWith("gpt-test • high • git main ↑2 @ pi-stuff-main • 2 changed • 1 staged • 1 untracked"));
 
 	handlers.get("session_shutdown")?.({}, ctx);
 	assert.equal(restoredBuiltInFooter, true);
