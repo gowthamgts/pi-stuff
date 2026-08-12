@@ -8,7 +8,7 @@ A collection of pi extensions. Each extension lives in its own independently ins
 | --- | --- |
 | [`codex-fast-mode`](./extensions/codex-fast-mode) | Controls fast and standard modes for supported OpenAI Codex models. |
 | [`codex-usage`](./extensions/codex-usage) | Displays remaining Codex subscription quota in the footer. |
-| [`git-status`](./extensions/git-status) | Displays branch and working-tree status alongside token usage in the footer. |
+| [`git-status`](./extensions/git-status) | Displays branch, worktree, and file status alongside token usage in the footer. |
 | [`silicon-valley`](./extensions/silicon-valley) | Displays a random *Silicon Valley* quote when a pi session starts. |
 
 ## Install

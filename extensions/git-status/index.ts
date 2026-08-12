@@ -1,3 +1,4 @@
+import { basename, normalize } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
@@ -5,6 +6,7 @@ const REFRESH_INTERVAL_MS = 2_000;
 
 export interface GitStatusSummary {
 	branch: string;
+	worktree?: string;
 	upstream?: string;
 	ahead: number;
 	behind: number;
@@ -84,11 +86,18 @@ export function parseGitStatus(output: string): GitStatusSummary {
 	return { branch, upstream, ahead, behind, changed, staged, modified, untracked, conflicted };
 }
 
+export function parseGitWorktree(output: string): string | undefined {
+	const [root, gitDir, commonDir] = output.split(/\r?\n/);
+	if (!root || !gitDir || !commonDir || normalize(gitDir) === normalize(commonDir)) return undefined;
+	return basename(normalize(root)) || root;
+}
+
 export function formatGitStatus(status: GitStatusSummary, compact = false): string {
 	const sync = [status.ahead > 0 ? `↑${status.ahead}` : "", status.behind > 0 ? `↓${status.behind}` : ""]
 		.filter(Boolean)
 		.join(" ");
-	const branch = `git ${status.branch}${sync ? ` ${sync}` : ""}`;
+	const worktree = status.worktree ? ` @ ${status.worktree}` : "";
+	const branch = `git ${status.branch}${sync ? ` ${sync}` : ""}${worktree}`;
 
 	if (status.changed === 0) return `${branch} • clean`;
 
@@ -191,6 +200,8 @@ function sanitizeStatusText(text: string): string {
 
 export default function gitStatus(pi: ExtensionAPI) {
 	let summary: GitStatusSummary | undefined;
+	let worktree: string | undefined;
+	let worktreeResolved = false;
 	let timer: ReturnType<typeof setInterval> | undefined;
 	let refreshActive: (() => Promise<void>) | undefined;
 	let requestRender = () => {};
@@ -205,6 +216,8 @@ export default function gitStatus(pi: ExtensionAPI) {
 	pi.on("session_start", (_event, ctx) => {
 		stopPolling();
 		summary = undefined;
+		worktree = undefined;
+		worktreeResolved = false;
 		const sessionGeneration = ++generation;
 
 		if (ctx.mode !== "tui") return;
@@ -268,13 +281,30 @@ export default function gitStatus(pi: ExtensionAPI) {
 		const refresh = (): Promise<void> => {
 			if (inFlight) return inFlight;
 			inFlight = (async () => {
-				const result = await pi.exec(
+				const statusRequest = pi.exec(
 					"git",
 					["status", "--porcelain=v2", "--branch", "--untracked-files=all"],
 					{ cwd: ctx.cwd, timeout: 3_000 },
 				);
+				const worktreeRequest = worktreeResolved
+					? Promise.resolve(undefined)
+					: pi.exec(
+						"git",
+						["rev-parse", "--path-format=absolute", "--show-toplevel", "--git-dir", "--git-common-dir"],
+						{ cwd: ctx.cwd, timeout: 3_000 },
+					);
+				const [statusResult, worktreeResult] = await Promise.all([statusRequest, worktreeRequest]);
 				if (generation !== sessionGeneration) return;
-				summary = result.code === 0 ? parseGitStatus(result.stdout) : undefined;
+				if (worktreeResult?.code === 0) {
+					worktree = parseGitWorktree(worktreeResult.stdout);
+					worktreeResolved = true;
+				}
+				if (statusResult.code === 0) {
+					summary = parseGitStatus(statusResult.stdout);
+					if (worktree) summary.worktree = worktree;
+				} else {
+					summary = undefined;
+				}
 				requestRender();
 			})()
 				.catch(() => {
@@ -307,6 +337,8 @@ export default function gitStatus(pi: ExtensionAPI) {
 		generation++;
 		stopPolling();
 		summary = undefined;
+		worktree = undefined;
+		worktreeResolved = false;
 		requestRender = () => {};
 		if (ctx.mode === "tui") ctx.ui.setFooter(undefined);
 	});

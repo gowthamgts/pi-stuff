@@ -1,7 +1,7 @@
 {
   "name": "@gowthamgts/pi-git-status",
   "version": "1.0.0",
-  "description": "Git branch and working-tree status alongside token usage in pi's footer.",
+  "description": "Git branch, worktree, and file status alongside token usage in pi's footer.",
   "type": "module",
   "license": "MIT",
   "author": "Gowtham Gopalakrishnan",
