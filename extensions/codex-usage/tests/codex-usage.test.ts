@@ -5,6 +5,7 @@ import codexUsage, {
 	fetchQuotaStatus,
 	formatCwdForFooter,
 	formatDuration,
+	formatQuotaStatus,
 	formatTokens,
 	layoutStatsLine,
 	parseQuotaStatus,
@@ -43,13 +44,18 @@ test('parses remaining quota from the usage payload', () => {
 				reset_after_seconds: 43_200,
 				reset_at: nowSec + 43_200,
 			},
-			secondary_window: null,
+			secondary_window: {
+				used_percent: 25,
+				reset_at: nowSec + 500_000,
+			},
 		},
 	}
 
 	assert.deepEqual(parseQuotaStatus(payload, nowSec), {
 		remainingPercent: 63,
 		resetsAt: nowSec + 43_200,
+		weeklyRemainingPercent: 75,
+		weeklyResetsAt: nowSec + 500_000,
 	})
 })
 
@@ -66,6 +72,8 @@ test('reports zero remaining when the limit is reached', () => {
 	assert.deepEqual(parseQuotaStatus(payload, nowSec), {
 		remainingPercent: 0,
 		resetsAt: nowSec + 2_874,
+		weeklyRemainingPercent: null,
+		weeklyResetsAt: null,
 	})
 })
 
@@ -95,6 +103,28 @@ test('formats countdown durations', () => {
 	assert.equal(formatDuration(200_000), '2d')
 })
 
+test('formats five-hour and weekly quota for shared footer status', () => {
+	assert.equal(formatQuotaStatus(null), '5h - –, 7d - –')
+	assert.equal(
+		formatQuotaStatus({
+			remainingPercent: 15,
+			resetsAt: null,
+			weeklyRemainingPercent: 75,
+			weeklyResetsAt: null,
+		}),
+		'5h - 15%, 7d - 75%',
+	)
+	assert.equal(
+		formatQuotaStatus({
+			remainingPercent: 25,
+			resetsAt: 1_000 + 2_874,
+			weeklyRemainingPercent: 75,
+			weeklyResetsAt: null,
+		}, 1_000),
+		'5h - 25%, 7d - 75% · resets in 48m',
+	)
+})
+
 test('extracts access tokens from pi and Codex CLI auth shapes', () => {
 	assert.deepEqual(extractAccessTokens({ tokens: { access_token: 'codex-token' } }), ['codex-token'])
 	assert.deepEqual(extractAccessTokens({ 'openai-codex': { access: 'pi-token' } }), ['pi-token'])
@@ -116,6 +146,7 @@ test('fetches quota status from the usage endpoint', async () => {
 			rate_limit: {
 				limit_reached: true,
 				primary_window: { used_percent: 100, reset_at: nowSec + 2_874 },
+				secondary_window: { used_percent: 25, reset_at: nowSec + 500_000 },
 			},
 		}),
 	})) as unknown as typeof fetch
@@ -125,6 +156,8 @@ test('fetches quota status from the usage endpoint', async () => {
 		assert.ok(status)
 		assert.equal(status.remainingPercent, 0)
 		assert.equal(status.resetsAt, nowSec + 2_874)
+		assert.equal(status.weeklyRemainingPercent, 75)
+		assert.equal(status.weeklyResetsAt, nowSec + 500_000)
 	} finally {
 		globalThis.fetch = realFetch
 	}
@@ -148,10 +181,10 @@ test('right-aligns the model name next to the stats', () => {
 	assert.equal(layoutStatsLine('aaa', 'b', 3), 'aaa')
 })
 
-test('renders the full footer with remaining quota', async () => {
+test('publishes quota as a shared status without replacing the footer', async () => {
 	const handlers = new Map<string, (event: unknown, ctx: any) => unknown>()
-	let component: { render(width: number): string[] } | undefined
-	let restoredBuiltInFooter = false
+	const statuses = new Map<string, string>()
+	let footerCalls = 0
 
 	const realFetch = globalThis.fetch
 	const nowSec = Math.floor(Date.now() / 1000)
@@ -161,6 +194,7 @@ test('renders the full footer with remaining quota', async () => {
 			rate_limit: {
 				limit_reached: true,
 				primary_window: { used_percent: 100, reset_at: nowSec + 2_874 },
+				secondary_window: { used_percent: 25, reset_at: nowSec + 500_000 },
 			},
 		}),
 	})) as unknown as typeof fetch
@@ -173,118 +207,29 @@ test('renders the full footer with remaining quota', async () => {
 
 	const ctx = {
 		mode: 'tui',
-		cwd: '/repo',
-		model: { id: 'gpt-test', provider: 'openai-codex', reasoning: false, contextWindow: 128_000 },
-		thinkingLevel: 'high',
-		modelRegistry: {
-			getProvider: () => ({ auth: { oauth: { isSubscription: true } } }),
-			isUsingOAuth: () => true,
-		},
-		getContextUsage: () => ({ tokens: 16_000, contextWindow: 128_000, percent: 12.5 }),
-		sessionManager: {
-			getCwd: () => '/repo',
-			getSessionName: () => undefined,
-			getEntries: () => [
-				{
-					type: 'message',
-					message: {
-						role: 'assistant',
-						usage: { input: 1_200, output: 34, cacheRead: 0, cacheWrite: 0, cost: { total: 0.01 } },
-					},
-				},
-			],
-		},
+		model: { id: 'gpt-test', provider: 'openai-codex' },
 		ui: {
-			setFooter(factory: any) {
-				if (factory === undefined) {
-					restoredBuiltInFooter = true
-					return
-				}
-				component = factory(
-					{ requestRender() {} },
-					{ fg(_color: string, text: string) { return text; } },
-					{
-						getGitBranch: () => null,
-						getExtensionStatuses: () => new Map([['codex-custom-footer', '⚡ Codex fast']]),
-						getAvailableProviderCount: () => 1,
-						onBranchChange: () => () => {},
-					},
-				)
+			theme: { fg(_color: string, text: string) { return text } },
+			setStatus(key: string, text: string | undefined) {
+				if (text === undefined) statuses.delete(key)
+				else statuses.set(key, text)
 			},
+			setFooter() { footerCalls++ },
 		},
 	}
 
-	handlers.get('session_start')?.({}, ctx)
-	await new Promise((resolve) => setTimeout(resolve, 20))
+	try {
+		handlers.get('session_start')?.({}, ctx)
+		await new Promise((resolve) => setTimeout(resolve, 20))
+		assert.equal(statuses.get('codex-usage'), '5h - 0%, 7d - 75% · resets in 48m')
+		assert.equal(footerCalls, 0)
 
-	const lines = component?.render(140)
-	assert.equal(lines?.length, 2)
-	// pwd line, exactly like the default footer
-	assert.equal(lines?.[0], '/repo')
-	// stats line: default content preserved...
-	assert.ok(lines?.[1].startsWith('↑1.2k ↓34 $0.010 (sub) 12.5%/128k'))
-	// ...with fast mode and the quota on the same line, model right-aligned
-	assert.ok(lines?.[1].includes('⚡ Codex fast · codex 0% left · resets in 48m'))
-	assert.ok(lines?.[1].endsWith('gpt-test'))
-
-	globalThis.fetch = realFetch
-	handlers.get('session_shutdown')?.({}, ctx)
-	assert.equal(restoredBuiltInFooter, true)
-})
-
-test('hides quota and fast mode when the model is not openai-codex', async () => {
-	const handlers = new Map<string, (event: unknown, ctx: any) => unknown>()
-	let component: { render(width: number): string[] } | undefined
-
-	codexUsage({
-		on(event: string, handler: (event: unknown, ctx: any) => unknown) {
-			handlers.set(event, handler)
-		},
-	} as any)
-
-	const ctx = {
-		mode: 'tui',
-		cwd: '/repo',
-		model: { id: 'deepseek-v4-flash', provider: 'deepseek', reasoning: false, contextWindow: 128_000 },
-		thinkingLevel: 'high',
-		modelRegistry: {
-			getProvider: () => ({ auth: { oauth: { isSubscription: true } } }),
-			isUsingOAuth: () => true,
-		},
-		getContextUsage: () => ({ tokens: 16_000, contextWindow: 128_000, percent: 12.5 }),
-		sessionManager: {
-			getCwd: () => '/repo',
-			getSessionName: () => undefined,
-			getEntries: () => [],
-		},
-		ui: {
-			setFooter(factory: any) {
-				if (factory === undefined) return
-				component = factory(
-					{ requestRender() {} },
-					{ fg(_color: string, text: string) { return text; } },
-					{
-						getGitBranch: () => null,
-						getExtensionStatuses: () =>
-							new Map([
-								['codex-custom-footer', '⚡ Codex fast'],
-								['my-other-ext', 'some status'],
-							]),
-						getAvailableProviderCount: () => 1,
-						onBranchChange: () => () => {},
-					},
-				)
-			},
-		},
+		handlers.get('model_select')?.({ model: { provider: 'deepseek' } }, ctx)
+		assert.equal(statuses.has('codex-usage'), false)
+	} finally {
+		globalThis.fetch = realFetch
+		handlers.get('session_shutdown')?.({}, ctx)
 	}
 
-	handlers.get('session_start')?.({}, ctx)
-	const lines = component?.render(140)
-	assert.equal(lines?.length, 3)
-	assert.ok(!lines?.[1].includes('codex'))
-	assert.ok(!lines?.[1].includes('⚡'))
-	// fast mode stays on the statuses line, other statuses too
-	assert.equal(lines?.[2], '⚡ Codex fast some status')
-
-	handlers.get('session_shutdown')?.({}, ctx)
+	assert.equal(statuses.has('codex-usage'), false)
 })

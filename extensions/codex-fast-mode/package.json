@@ -1,6 +1,6 @@
 {
   "name": "@gowthamgts/pi-codex-fast-mode",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "A pi extension for toggling fast mode on supported OpenAI Codex models.",
   "type": "module",
   "license": "MIT",

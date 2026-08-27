@@ -23,6 +23,8 @@ export interface UsageTotals {
 	cacheRead: number;
 	cacheWrite: number;
 	cost: number;
+	/** Cache hit rate from the latest assistant response, matching pi's default footer. */
+	latestCacheHitRate?: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -140,6 +142,14 @@ export function collectUsageTotals(entries: readonly unknown[]): UsageTotals {
 			if (entry.message.role === "assistant" || (entry.message.role === "toolResult" && entry.message.usage)) {
 				addUsage(totals, entry.message.usage);
 			}
+			if (entry.message.role === "assistant" && isRecord(entry.message.usage)) {
+				const usage = entry.message.usage;
+				const input = typeof usage.input === "number" ? usage.input : 0;
+				const cacheRead = typeof usage.cacheRead === "number" ? usage.cacheRead : 0;
+				const cacheWrite = typeof usage.cacheWrite === "number" ? usage.cacheWrite : 0;
+				const promptTokens = input + cacheRead + cacheWrite;
+				totals.latestCacheHitRate = promptTokens > 0 ? (cacheRead / promptTokens) * 100 : undefined;
+			}
 		} else if (entry.type === "branch_summary" || entry.type === "compaction") {
 			addUsage(totals, entry.usage);
 		}
@@ -159,13 +169,19 @@ export function formatTokens(count: number): string {
 export function formatUsageStats(
 	totals: UsageTotals,
 	contextUsage: { percent: number | null; contextWindow: number } | undefined,
+	usingSubscription = false,
 ): string {
 	const parts: string[] = [];
 	if (totals.input > 0) parts.push(`↑${formatTokens(totals.input)}`);
 	if (totals.output > 0) parts.push(`↓${formatTokens(totals.output)}`);
 	if (totals.cacheRead > 0) parts.push(`R${formatTokens(totals.cacheRead)}`);
 	if (totals.cacheWrite > 0) parts.push(`W${formatTokens(totals.cacheWrite)}`);
-	if (totals.cost > 0) parts.push(`$${totals.cost.toFixed(3)}`);
+	if ((totals.cacheRead > 0 || totals.cacheWrite > 0) && totals.latestCacheHitRate !== undefined) {
+		parts.push(`CH${totals.latestCacheHitRate.toFixed(1)}%`);
+	}
+	if (totals.cost > 0 || usingSubscription) {
+		parts.push(`$${totals.cost.toFixed(3)}${usingSubscription ? " (sub)" : ""}`);
+	}
 
 	if (contextUsage) {
 		const percent = contextUsage.percent === null ? "?" : `${contextUsage.percent.toFixed(1)}%`;
@@ -242,7 +258,11 @@ export default function gitStatus(pi: ExtensionAPI) {
 					);
 
 					const totals = collectUsageTotals(ctx.sessionManager.getEntries());
-					const usageText = formatUsageStats(totals, ctx.getContextUsage());
+					const provider = ctx.model ? ctx.modelRegistry.getProvider(ctx.model.provider) : undefined;
+					const oauth = (provider?.auth as { oauth?: { isSubscription?: boolean } } | undefined)?.oauth;
+					const usingSubscription =
+						ctx.model !== undefined && ctx.modelRegistry.isUsingOAuth(ctx.model) && oauth?.isSubscription === true;
+					const usageText = formatUsageStats(totals, ctx.getContextUsage(), usingSubscription);
 					const modelName = ctx.model?.id ?? "no-model";
 					const thinking = ctx.model?.reasoning ? ` • ${pi.getThinkingLevel()}` : "";
 					const modelText = `${modelName}${thinking}`;

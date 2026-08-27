@@ -44,13 +44,13 @@ Restart pi or run `/reload` after installing an extension.
 
 ## Usage
 
-- **Codex fast mode:** Select a supported `openai-codex` model, then use `/fast on`, `/fast off`, or `/fast status`. New sessions default to fast mode.
-- **Codex usage:** Sign in to the `openai-codex` provider with ChatGPT. The footer automatically shows the remaining weekly quota and, at 25% or below, the reset countdown.
+- **Codex fast mode:** Select a supported `openai-codex` model, then use `/fast on`, `/fast off`, or `/fast status`. Your selection persists across sessions.
+- **Codex usage:** Sign in to the `openai-codex` provider with ChatGPT. The footer automatically shows the remaining five-hour and weekly quotas and, when the five-hour quota is at 25% or below, its reset countdown.
 - **Git commit:** Run `/commit` in a Git repository to stage all changes and commit them with a lowercase AI-written subject of at most 40 characters.
 - **Git status:** Start pi inside a Git repository. The footer automatically shows the branch, ahead/behind and file counts. In a linked worktree it also shows `@ <worktree-directory>`; the main worktree keeps the branch-only display.
 - **Silicon Valley:** A random quote appears whenever a new pi session starts.
 
-`codex-usage` and `git-status` both provide a custom footer, and pi displays only one custom footer at a time. Install or enable the one you want to use. See each extension's linked README for display details, authentication notes, and supported models.
+`codex-usage` publishes its quota as an extension status, so it can be used together with `git-status`; the Git footer preserves pi's token, cache-hit, cost, context, model, and extension-status information. See each extension's linked README for display details, authentication notes, and supported models.
 
 ## Add an extension
 

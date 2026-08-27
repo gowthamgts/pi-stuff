@@ -133,9 +133,12 @@ test("collects and formats usage totals", () => {
 		cacheRead: 100,
 		cacheWrite: 2,
 		cost: 0.012,
+		latestCacheHitRate: (100 / 1_300) * 100,
 	});
 	assert.equal(formatUsageStats(totals, { percent: 12.5, contextWindow: 128_000 }),
-		"↑1.2k ↓40 R100 W2 $0.012 12.5%/128k");
+		"↑1.2k ↓40 R100 W2 CH7.7% $0.012 12.5%/128k");
+	assert.equal(formatUsageStats({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 }, undefined, true),
+		"$0.000 (sub)");
 });
 
 test("renders Git status on the token-usage footer line", async () => {
@@ -172,13 +175,17 @@ test("renders Git status on the token-usage footer line", async () => {
 		type: "message",
 		message: {
 			role: "assistant",
-			usage: { input: 1_200, output: 34, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } },
+			usage: { input: 1_200, output: 34, cacheRead: 100, cacheWrite: 0, cost: { total: 0 } },
 		},
 	}];
 	const ctx = {
 		mode: "tui",
 		cwd: "/repo",
-		model: { id: "gpt-test", reasoning: true },
+		model: { id: "gpt-test", provider: "openai-codex", reasoning: true },
+		modelRegistry: {
+			getProvider: () => ({ auth: { oauth: { isSubscription: true } } }),
+			isUsingOAuth: () => true,
+		},
 		getContextUsage: () => ({ tokens: 16_000, contextWindow: 128_000, percent: 12.5 }),
 		sessionManager: {
 			getEntries: () => entries,
@@ -193,7 +200,12 @@ test("renders Git status on the token-usage footer line", async () => {
 				component = factory(
 					{ requestRender() {} },
 					{ fg(_color: string, text: string) { return text; } },
-					{ getExtensionStatuses: () => new Map() },
+					{
+						getExtensionStatuses: () => new Map([
+							["codex-custom-footer", "⚡ Codex fast"],
+							["codex-usage", "5h - 15%, 7d - 75%"],
+						]),
+					},
 				);
 			},
 		},
@@ -204,8 +216,9 @@ test("renders Git status on the token-usage footer line", async () => {
 
 	const lines = component?.render(140);
 	assert.equal(lines?.length, 2);
-	assert.equal(lines?.[0], "/repo");
-	assert.ok(lines?.[1].startsWith("↑1.2k ↓34 12.5%/128k"));
+	assert.ok(lines?.[0].startsWith("/repo"));
+	assert.ok(lines?.[0].endsWith("⚡ Codex fast 5h - 15%, 7d - 75%"));
+	assert.ok(lines?.[1].startsWith("↑1.2k ↓34 R100 CH7.7% $0.000 (sub) 12.5%/128k"));
 	assert.ok(lines?.[1].endsWith("gpt-test • high • git main ↑2 @ pi-stuff-main • 2 changed • 1 staged • 1 untracked"));
 
 	handlers.get("session_shutdown")?.({}, ctx);

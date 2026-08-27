@@ -20,11 +20,11 @@ The extension deliberately leaves unsupported Codex models such as `gpt-5.4-mini
 /fast status
 ```
 
-Fast mode defaults to on in new sessions. The selected mode is stored in the current pi session and survives reloads and resumes. Supported models show `⚡ Codex fast` or `○ Codex standard` in pi's status bar.
+Fast mode defaults to on until you change it. The selected mode is saved globally in `~/.pi/agent/codex-fast-mode.json`, so it applies to new sessions and survives reloads and resumes. Existing session-only preferences are migrated automatically. Supported models show `⚡ Codex fast` or `○ Codex standard` in pi's status bar.
 
 ## Shared status key
 
-The indicator is published under the `CODEX_FOOTER_STATUS_KEY` (`codex-custom-footer`) status slot, which the [`codex-usage`](../codex-usage) extension inlines into its custom footer's stats line next to the remaining quota. Without that extension the status still appears on pi's default status line.
+The indicator is published under the `CODEX_FOOTER_STATUS_KEY` (`codex-custom-footer`) status slot. It appears alongside the separate quota status from [`codex-usage`](../codex-usage) in pi's default footer and in compatible custom footers such as [`git-status`](../git-status).
 
 ## Install
 

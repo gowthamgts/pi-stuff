@@ -20,7 +20,9 @@ git main • Δ5 +2 ~2 ?1
 
 The display refreshes every two seconds and immediately after pi tool executions and turns. In a linked Git worktree, the worktree directory name appears after `@`; the main worktree keeps the shorter branch-only display. It stays hidden outside Git repositories and uses a compact layout when the terminal is narrow.
 
-The extension uses pi's public custom-footer API—no pi source modification is required. Because pi supports one custom footer at a time, another extension that calls `setFooter()` can replace this footer (and vice versa).
+The custom footer preserves token totals, cache reads and writes, the latest cache-hit rate, cost/subscription status, context usage, model, thinking level, and extension statuses. That means it can display the [`codex-usage`](../codex-usage) quota and [`codex-fast-mode`](../codex-fast-mode) indicator alongside Git status.
+
+The extension uses pi's public custom-footer API—no pi source modification is required. Another extension that calls `setFooter()` can still replace it, because pi supports one custom footer at a time.
 
 ## Install
 

@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import codexFastMode, {
 	enableFastMode,
 	FAST_MODE_SERVICE_TIER,
+	loadFastModePreference,
 	restoreFastModeState,
+	saveFastModePreference,
 	setFastMode,
 	supportsCodexFastMode,
 } from "../index.ts";
@@ -83,7 +88,10 @@ test("restores the latest mode stored in a session", () => {
 	);
 });
 
-test("/fast toggles requests, status, and persisted session state", () => {
+test("/fast toggles requests, status, and persisted state", async (t) => {
+	const directory = await mkdtemp(join(tmpdir(), "codex-fast-mode-"));
+	t.after(() => rm(directory, { recursive: true, force: true }));
+	const preferencePath = join(directory, "preference.json");
 	const handlers = new Map<string, (event: any, ctx: any) => unknown>();
 	const commands = new Map<string, { handler: (args: string, ctx: any) => unknown }>();
 	const appended: Array<{ customType: string; data: unknown }> = [];
@@ -98,7 +106,7 @@ test("/fast toggles requests, status, and persisted session state", () => {
 		appendEntry(customType: string, data: unknown) {
 			appended.push({ customType, data });
 		},
-	} as any);
+	} as any, { preferencePath });
 
 	const statuses: Array<string | undefined> = [];
 	const notifications: Array<{ message: string; level: string }> = [];
@@ -122,15 +130,16 @@ test("/fast toggles requests, status, and persisted session state", () => {
 	assert.ok(requestHandler);
 	assert.ok(fastCommand);
 
-	sessionHandler({}, ctx);
+	await sessionHandler({}, ctx);
 	assert.equal(statuses.at(-1), "⚡ Codex fast");
 	assert.deepEqual(requestHandler({ payload: { model: "gpt-5.5" } }, ctx), {
 		model: "gpt-5.5",
 		service_tier: "priority",
 	});
 
-	fastCommand.handler("off", ctx);
+	await fastCommand.handler("off", ctx);
 	assert.equal(statuses.at(-1), "○ Codex standard");
+	assert.equal(await loadFastModePreference(preferencePath), false);
 	assert.deepEqual(appended.at(-1), {
 		customType: "codex-fast-mode-state",
 		data: { enabled: false },
@@ -140,27 +149,31 @@ test("/fast toggles requests, status, and persisted session state", () => {
 		{ model: "gpt-5.5" },
 	);
 
-	fastCommand.handler("status", ctx);
+	await fastCommand.handler("status", ctx);
 	assert.deepEqual(notifications.at(-1), {
 		message: "Codex fast mode is off.",
 		level: "info",
 	});
 
-	fastCommand.handler("on", ctx);
+	await fastCommand.handler("on", ctx);
 	assert.equal(statuses.at(-1), "⚡ Codex fast");
+	assert.equal(await loadFastModePreference(preferencePath), true);
 	assert.deepEqual(appended.at(-1), {
 		customType: "codex-fast-mode-state",
 		data: { enabled: true },
 	});
 
-	fastCommand.handler("invalid", ctx);
+	await fastCommand.handler("invalid", ctx);
 	assert.deepEqual(notifications.at(-1), {
 		message: "Usage: /fast on|off|status",
 		level: "error",
 	});
 });
 
-test("restored standard mode applies before the first request", () => {
+test("restored standard mode applies before the first request and migrates", async (t) => {
+	const directory = await mkdtemp(join(tmpdir(), "codex-fast-mode-"));
+	t.after(() => rm(directory, { recursive: true, force: true }));
+	const preferencePath = join(directory, "preference.json");
 	const handlers = new Map<string, (event: any, ctx: any) => unknown>();
 	codexFastMode({
 		on(event: string, handler: (event: any, ctx: any) => unknown) {
@@ -168,7 +181,7 @@ test("restored standard mode applies before the first request", () => {
 		},
 		registerCommand() {},
 		appendEntry() {},
-	} as any);
+	} as any, { preferencePath });
 
 	const ctx = {
 		model: supportedModel,
@@ -180,7 +193,39 @@ test("restored standard mode applies before the first request", () => {
 		ui: { setStatus() {}, notify() {} },
 	};
 
-	handlers.get("session_start")?.({}, ctx);
+	await handlers.get("session_start")?.({}, ctx);
+	assert.equal(await loadFastModePreference(preferencePath), false);
+	assert.deepEqual(
+		handlers.get("before_provider_request")?.(
+			{ payload: { model: "gpt-5.5", service_tier: "priority" } },
+			ctx,
+		),
+		{ model: "gpt-5.5" },
+	);
+});
+
+test("global preference is restored in a new session", async (t) => {
+	const directory = await mkdtemp(join(tmpdir(), "codex-fast-mode-"));
+	t.after(() => rm(directory, { recursive: true, force: true }));
+	const preferencePath = join(directory, "preference.json");
+	await saveFastModePreference(preferencePath, false);
+
+	const handlers = new Map<string, (event: any, ctx: any) => unknown>();
+	codexFastMode({
+		on(event: string, handler: (event: any, ctx: any) => unknown) {
+			handlers.set(event, handler);
+		},
+		registerCommand() {},
+		appendEntry() {},
+	} as any, { preferencePath });
+
+	const ctx = {
+		model: supportedModel,
+		sessionManager: { getBranch: () => [] },
+		ui: { setStatus() {}, notify() {} },
+	};
+	await handlers.get("session_start")?.({}, ctx);
+
 	assert.deepEqual(
 		handlers.get("before_provider_request")?.(
 			{ payload: { model: "gpt-5.5", service_tier: "priority" } },

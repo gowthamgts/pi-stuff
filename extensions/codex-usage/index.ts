@@ -11,19 +11,22 @@ const AUTH_FILES = [
 	join(HOME, '.codex', 'auth.json'),
 ]
 const QUOTA_URL = 'https://chatgpt.com/backend-api/wham/usage'
-/**
- * Status slot shared with the codex-fast-mode extension: its fast/standard
- * indicator is inlined into this footer's stats line instead of the statuses line.
- */
+/** Status slot published by codex-fast-mode. Retained for package compatibility. */
 export const CODEX_FOOTER_STATUS_KEY = 'codex-custom-footer'
+/** Quota status consumed by pi's default footer and custom footers such as git-status. */
+export const CODEX_USAGE_STATUS_KEY = 'codex-usage'
 const MINUTE_MS = 60 * 1000
 const QUOTA_REFRESH_MS = 5 * MINUTE_MS
 
 export interface QuotaStatus {
-	/** Remaining quota as a percentage of the weekly window (0–100). */
+	/** Remaining quota in the primary five-hour window (0–100). */
 	remainingPercent: number
-	/** Epoch seconds at which the quota window resets, when known. */
+	/** Epoch seconds at which the primary window resets, when known. */
 	resetsAt: number | null
+	/** Remaining quota in the secondary weekly window, when reported (0–100). */
+	weeklyRemainingPercent: number | null
+	/** Epoch seconds at which the weekly window resets, when known. */
+	weeklyResetsAt: number | null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -58,18 +61,27 @@ export function parseQuotaStatus(data: unknown, nowSec: number): QuotaStatus | n
 	const rateLimit = data.rate_limit
 	if (!isRecord(rateLimit)) return null
 
-	let remainingPercent = 100
-	let resetsAt: number | null = null
-	if (isRecord(rateLimit.primary_window)) {
-		const window = rateLimit.primary_window
-		if (typeof window.used_percent === 'number') {
-			remainingPercent = Math.max(0, Math.min(100, 100 - window.used_percent))
-		}
-		if (typeof window.reset_at === 'number' && window.reset_at > nowSec) resetsAt = window.reset_at
+	const parseWindow = (value: unknown): { remainingPercent: number; resetsAt: number | null } | null => {
+		if (!isRecord(value)) return null
+		const remainingPercent =
+			typeof value.used_percent === 'number'
+				? Math.max(0, Math.min(100, 100 - value.used_percent))
+				: 100
+		const resetsAt =
+			typeof value.reset_at === 'number' && value.reset_at > nowSec ? value.reset_at : null
+		return { remainingPercent, resetsAt }
 	}
-	if (rateLimit.limit_reached === true) remainingPercent = 0
 
-	return { remainingPercent, resetsAt }
+	const primary = parseWindow(rateLimit.primary_window) ?? { remainingPercent: 100, resetsAt: null }
+	const weekly = parseWindow(rateLimit.secondary_window)
+	if (rateLimit.limit_reached === true) primary.remainingPercent = 0
+
+	return {
+		remainingPercent: primary.remainingPercent,
+		resetsAt: primary.resetsAt,
+		weeklyRemainingPercent: weekly?.remainingPercent ?? null,
+		weeklyResetsAt: weekly?.resetsAt ?? null,
+	}
 }
 
 /** Formats a duration in seconds as a compact countdown (e.g. "48m", "3h 12m", "2d"). */
@@ -82,6 +94,16 @@ export function formatDuration(seconds: number): string {
 		return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
 	}
 	return `${Math.floor(seconds / 86_400)}d`
+}
+
+export function formatQuotaStatus(status: QuotaStatus | null, nowSec = Date.now() / 1000): string {
+	if (!status) return '5h - –, 7d - –'
+	let text = `5h - ${status.remainingPercent}%`
+	if (status.weeklyRemainingPercent !== null) text += `, 7d - ${status.weeklyRemainingPercent}%`
+	if (status.remainingPercent <= 25 && status.resetsAt !== null) {
+		text += ` · resets in ${formatDuration(Math.max(0, status.resetsAt - nowSec))}`
+	}
+	return text
 }
 
 /** Pulls ChatGPT OAuth access tokens from pi's or the Codex CLI's auth file. */
@@ -129,7 +151,7 @@ export async function fetchQuotaStatus(tokens: readonly string[]): Promise<Quota
 	return null
 }
 
-/** Right-aligns the model name next to the stats, truncating the right side when narrow. */
+/** Right-aligns text next to stats. Retained for compatibility with existing consumers. */
 export function layoutStatsLine(statsLeft: string, rightSide: string, width: number): string {
 	const statsLeftWidth = visibleWidth(statsLeft)
 	const minPadding = 2
@@ -148,33 +170,34 @@ export function layoutStatsLine(statsLeft: string, rightSide: string, width: num
 	return statsLeft
 }
 
-function sanitizeStatusText(text: string): string {
-	return text.replace(/[\r\n\t]/g, ' ').replace(/ +/g, ' ').trim()
-}
-
 export default function codexUsage(pi: ExtensionAPI) {
 	let quota: QuotaStatus | null = null
-	let renderTimer: ReturnType<typeof setInterval> | undefined
+	let currentModel: { provider?: unknown } | undefined
+	let countdownTimer: ReturnType<typeof setInterval> | undefined
 	let quotaTimer: ReturnType<typeof setInterval> | undefined
-	let requestRender = () => {}
+	let settledTimer: ReturnType<typeof setTimeout> | undefined
+	let updateStatus = () => {}
 	let generation = 0
 	let quotaInFlight = false
 
 	const stopTimers = () => {
-		if (renderTimer) clearInterval(renderTimer)
+		if (countdownTimer) clearInterval(countdownTimer)
 		if (quotaTimer) clearInterval(quotaTimer)
-		renderTimer = undefined
+		if (settledTimer) clearTimeout(settledTimer)
+		countdownTimer = undefined
 		quotaTimer = undefined
+		settledTimer = undefined
 	}
 
 	const refreshQuota = async (): Promise<void> => {
 		if (quotaInFlight) return
 		quotaInFlight = true
+		const requestGeneration = generation
 		try {
-			quota = await fetchQuotaStatus(readAccessTokens())
-			requestRender()
-		} catch {
-			// keep the last known value
+			const nextQuota = await fetchQuotaStatus(readAccessTokens())
+			if (requestGeneration !== generation) return
+			quota = nextQuota
+			updateStatus()
 		} finally {
 			quotaInFlight = false
 		}
@@ -182,186 +205,57 @@ export default function codexUsage(pi: ExtensionAPI) {
 
 	pi.on('session_start', (_event, ctx) => {
 		stopTimers()
-		const sessionGeneration = ++generation
+		generation++
+		quota = null
+		currentModel = ctx.model
 
 		if (ctx.mode !== 'tui') return
 
-		ctx.ui.setFooter((tui, theme, footerData) => {
-			const unsubscribeBranch = footerData.onBranchChange(() => tui.requestRender())
-			requestRender = () => tui.requestRender()
-
-			// Minute tick keeps the reset countdown current without refetching.
-			renderTimer = setInterval(() => {
-				if (generation !== sessionGeneration) return
-				tui.requestRender()
-			}, MINUTE_MS)
-			renderTimer.unref?.()
-			quotaTimer = setInterval(() => void refreshQuota(), QUOTA_REFRESH_MS)
-			quotaTimer.unref?.()
-			void refreshQuota()
-
-			return {
-				dispose() {
-					requestRender = () => {}
-					stopTimers()
-					unsubscribeBranch()
-				},
-				invalidate() {},
-				render(width: number): string[] {
-					// --- usage totals (same as the default footer) ---
-					let input = 0
-					let output = 0
-					let cacheRead = 0
-					let cacheWrite = 0
-					let cost = 0
-					let latestCacheHitRate: number | undefined
-					for (const entry of ctx.sessionManager.getEntries()) {
-						if (entry.type === 'message' && entry.message.role === 'assistant') {
-							const usage = entry.message.usage
-							input += usage.input
-							output += usage.output
-							cacheRead += usage.cacheRead
-							cacheWrite += usage.cacheWrite
-							cost += usage.cost.total
-							const latestPromptTokens = usage.input + usage.cacheRead + usage.cacheWrite
-							latestCacheHitRate =
-								latestPromptTokens > 0 ? (usage.cacheRead / latestPromptTokens) * 100 : undefined
-						} else if (entry.type === 'message' && entry.message.role === 'toolResult' && entry.message.usage) {
-							const usage = entry.message.usage
-							input += usage.input
-							output += usage.output
-							cacheRead += usage.cacheRead
-							cacheWrite += usage.cacheWrite
-							cost += usage.cost.total
-						} else if ((entry.type === 'branch_summary' || entry.type === 'compaction') && entry.usage) {
-							const usage = entry.usage
-							input += usage.input
-							output += usage.output
-							cacheRead += usage.cacheRead
-							cacheWrite += usage.cacheWrite
-							cost += usage.cost.total
-						}
-					}
-
-					// --- context usage ---
-					const contextUsage = ctx.getContextUsage()
-					const contextWindow = contextUsage?.contextWindow ?? ctx.model?.contextWindow ?? 0
-					const contextPercentValue = contextUsage?.percent ?? 0
-					const contextPercent = contextUsage?.percent !== null ? contextPercentValue.toFixed(1) : '?'
-					const contextPercentDisplay = `${contextPercent}%/${formatTokens(contextWindow)}`
-					const contextPercentStr =
-						contextPercentValue > 90
-							? theme.fg('error', contextPercentDisplay)
-							: contextPercentValue > 70
-								? theme.fg('warning', contextPercentDisplay)
-								: contextPercentDisplay
-
-					// --- stats line (mirrors the default footer, plus the quota segment) ---
-					const statsParts: string[] = []
-					if (input) statsParts.push(`↑${formatTokens(input)}`)
-					if (output) statsParts.push(`↓${formatTokens(output)}`)
-					if (cacheRead) statsParts.push(`R${formatTokens(cacheRead)}`)
-					if (cacheWrite) statsParts.push(`W${formatTokens(cacheWrite)}`)
-					if ((cacheRead > 0 || cacheWrite > 0) && latestCacheHitRate !== undefined) {
-						statsParts.push(`CH${latestCacheHitRate.toFixed(1)}%`)
-					}
-					const provider = ctx.model ? ctx.modelRegistry.getProvider(ctx.model.provider) : undefined
-					const oauth = (provider?.auth as { oauth?: { isSubscription?: boolean } } | undefined)?.oauth
-					const usingSubscription =
-						ctx.model !== undefined && ctx.modelRegistry.isUsingOAuth(ctx.model) && oauth?.isSubscription === true
-					if (cost || usingSubscription) {
-						statsParts.push(`$${cost.toFixed(3)}${usingSubscription ? ' (sub)' : ''}`)
-					}
-					statsParts.push(contextPercentStr)
-
-					// Quota and fast-mode indicator only for Codex subscription models.
-					const isCodexModel = ctx.model?.provider === 'openai-codex'
-					const extensionStatuses = footerData.getExtensionStatuses()
-					if (isCodexModel) {
-						const fastStatus = extensionStatuses.get(CODEX_FOOTER_STATUS_KEY)
-						if (fastStatus) {
-							statsParts.push(theme.fg('dim', sanitizeStatusText(fastStatus)))
-							if (quota) statsParts.push(theme.fg('dim', '·'))
-						}
-						if (quota) {
-							let quotaText = `codex ${quota.remainingPercent}% left`
-							if (quota.remainingPercent <= 25 && quota.resetsAt !== null) {
-								const remainingSec = Math.max(0, quota.resetsAt - Date.now() / 1000)
-								quotaText += ` · resets in ${formatDuration(remainingSec)}`
-							}
-							statsParts.push(
-								quota.remainingPercent <= 0
-									? theme.fg('error', quotaText)
-									: quota.remainingPercent <= 25
-										? theme.fg('warning', quotaText)
-										: theme.fg('accent', quotaText),
-							)
-						} else {
-							statsParts.push(theme.fg('dim', 'codex –'))
-						}
-					}
-
-					let statsLeft = statsParts.join(' ')
-					let statsLeftWidth = visibleWidth(statsLeft)
-					if (statsLeftWidth > width) {
-						statsLeft = truncateToWidth(statsLeft, width, '...')
-						statsLeftWidth = visibleWidth(statsLeft)
-					}
-
-					const modelName = ctx.model?.id ?? 'no-model'
-					let rightSideWithoutProvider = modelName
-					if (ctx.model?.reasoning) {
-						const thinkingLevel = ctx.thinkingLevel || 'off'
-						rightSideWithoutProvider =
-							thinkingLevel === 'off' ? `${modelName} • thinking off` : `${modelName} • ${thinkingLevel}`
-					}
-					let rightSide = rightSideWithoutProvider
-					if (footerData.getAvailableProviderCount() > 1 && ctx.model) {
-						rightSide = `(${ctx.model.provider}) ${rightSideWithoutProvider}`
-						if (statsLeftWidth + 2 + visibleWidth(rightSide) > width) rightSide = rightSideWithoutProvider
-					}
-
-					const statsLine = layoutStatsLine(statsLeft, rightSide, width)
-					// Dim the stats and the right side separately so inner colors (context %,
-					// quota) survive, exactly like the default footer.
-					const dimStatsLeft = theme.fg('dim', statsLeft)
-					const remainder = statsLine.slice(statsLeft.length)
-					const dimRemainder = theme.fg('dim', remainder)
-
-					// --- pwd line ---
-					let pwd = formatCwdForFooter(ctx.sessionManager.getCwd(), process.env.HOME)
-					const branch = footerData.getGitBranch()
-					if (branch) pwd = `${pwd} (${branch})`
-					const sessionName = ctx.sessionManager.getSessionName()
-					if (sessionName) pwd = `${pwd} • ${sessionName}`
-					const pwdLine = truncateToWidth(theme.fg('dim', pwd), width, theme.fg('dim', '...'))
-
-					const lines = [pwdLine, dimStatsLeft + dimRemainder]
-
-					// --- extension statuses line (fast mode is inlined into the stats line for Codex models) ---
-					const otherStatuses = Array.from(extensionStatuses.entries())
-						.filter(([key]) => key !== CODEX_FOOTER_STATUS_KEY || !isCodexModel)
-						.sort(([a], [b]) => a.localeCompare(b))
-						.map(([, text]) => sanitizeStatusText(text))
-					if (otherStatuses.length > 0) {
-						lines.push(truncateToWidth(otherStatuses.join(' '), width, theme.fg('dim', '...')))
-					}
-
-					return lines
-				},
+		updateStatus = () => {
+			if (currentModel?.provider !== 'openai-codex') {
+				ctx.ui.setStatus(CODEX_USAGE_STATUS_KEY, undefined)
+				return
 			}
-		})
+			const text = formatQuotaStatus(quota)
+			const lowestRemaining = quota
+				? Math.min(quota.remainingPercent, quota.weeklyRemainingPercent ?? 100)
+				: undefined
+			ctx.ui.setStatus(
+				CODEX_USAGE_STATUS_KEY,
+				lowestRemaining === 0
+					? ctx.ui.theme.fg('error', text)
+					: lowestRemaining !== undefined && lowestRemaining <= 25
+						? ctx.ui.theme.fg('warning', text)
+						: quota
+							? ctx.ui.theme.fg('accent', text)
+							: ctx.ui.theme.fg('dim', text),
+			)
+		}
+
+		updateStatus()
+		countdownTimer = setInterval(updateStatus, MINUTE_MS)
+		countdownTimer.unref?.()
+		quotaTimer = setInterval(() => void refreshQuota(), QUOTA_REFRESH_MS)
+		quotaTimer.unref?.()
+		void refreshQuota()
 	})
 
-	// Refresh the quota shortly after an agent run settles.
+	pi.on('model_select', (event) => {
+		currentModel = event.model
+		updateStatus()
+	})
+
 	pi.on('agent_settled', () => {
-		setTimeout(() => void refreshQuota(), 30_000).unref?.()
+		if (settledTimer) clearTimeout(settledTimer)
+		settledTimer = setTimeout(() => void refreshQuota(), 30_000)
+		settledTimer.unref?.()
 	})
 
 	pi.on('session_shutdown', (_event, ctx) => {
 		generation++
-		requestRender = () => {}
 		stopTimers()
-		if (ctx.mode === 'tui') ctx.ui.setFooter(undefined)
+		updateStatus = () => {}
+		currentModel = undefined
+		if (ctx.mode === 'tui') ctx.ui.setStatus(CODEX_USAGE_STATUS_KEY, undefined)
 	})
 }

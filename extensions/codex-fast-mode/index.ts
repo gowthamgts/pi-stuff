@@ -1,12 +1,13 @@
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 export const FAST_MODE_SERVICE_TIER = "priority";
 const STATE_ENTRY_TYPE = "codex-fast-mode-state";
+const PREFERENCE_FILE_NAME = "codex-fast-mode.json";
 
-/**
- * Status slot shared with the codex-usage extension. The codex-usage footer
- * inlines this status into the stats line, so it is not just a footer note.
- */
+/** Status slot shown alongside the separate codex-usage quota status. */
 export const CODEX_FOOTER_STATUS_KEY = "codex-custom-footer";
 
 export interface ModelDescriptor {
@@ -54,8 +55,8 @@ export function enableFastMode(payload: unknown): unknown {
 	return setFastMode(payload, true);
 }
 
-export function restoreFastModeState(entries: readonly unknown[]): boolean {
-	let enabled = true;
+function findFastModeState(entries: readonly unknown[]): boolean | undefined {
+	let enabled: boolean | undefined;
 
 	for (const entry of entries) {
 		if (
@@ -72,8 +73,45 @@ export function restoreFastModeState(entries: readonly unknown[]): boolean {
 	return enabled;
 }
 
-export default function codexFastMode(pi: ExtensionAPI) {
+export function restoreFastModeState(entries: readonly unknown[]): boolean {
+	return findFastModeState(entries) ?? true;
+}
+
+export function getFastModePreferencePath(): string {
+	const agentDir = process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent");
+	return join(agentDir, PREFERENCE_FILE_NAME);
+}
+
+export async function loadFastModePreference(path: string): Promise<boolean | undefined> {
+	try {
+		const preference = JSON.parse(await readFile(path, "utf8"));
+		return isRecord(preference) && typeof preference.enabled === "boolean"
+			? preference.enabled
+			: undefined;
+	} catch (error) {
+		if (isRecord(error) && error.code === "ENOENT") return undefined;
+		throw error;
+	}
+}
+
+export async function saveFastModePreference(path: string, enabled: boolean): Promise<void> {
+	await mkdir(dirname(path), { recursive: true });
+	const temporaryPath = `${path}.${process.pid}.${Date.now()}.tmp`;
+
+	try {
+		await writeFile(temporaryPath, `${JSON.stringify({ enabled })}\n`, { mode: 0o600 });
+		await rename(temporaryPath, path);
+	} finally {
+		await rm(temporaryPath, { force: true });
+	}
+}
+
+export default function codexFastMode(
+	pi: ExtensionAPI,
+	options: { preferencePath?: string } = {},
+) {
 	let enabled = true;
+	const preferencePath = options.preferencePath ?? getFastModePreferencePath();
 
 	const updateStatus = (
 		model: ModelDescriptor | undefined,
@@ -93,8 +131,22 @@ export default function codexFastMode(pi: ExtensionAPI) {
 		return "Codex fast mode is on, but the current model does not support it.";
 	};
 
-	pi.on("session_start", (_event, ctx) => {
-		enabled = restoreFastModeState(ctx.sessionManager.getBranch());
+	pi.on("session_start", async (_event, ctx) => {
+		const sessionPreference = findFastModeState(ctx.sessionManager.getBranch());
+
+		try {
+			const savedPreference = await loadFastModePreference(preferencePath);
+			enabled = savedPreference ?? sessionPreference ?? true;
+
+			// Migrate the old session-only setting the first time this version loads it.
+			if (savedPreference === undefined && sessionPreference !== undefined) {
+				await saveFastModePreference(preferencePath, sessionPreference);
+			}
+		} catch (error) {
+			enabled = sessionPreference ?? true;
+			console.error(`Failed to load Codex fast mode preference from ${preferencePath}: ${error}`);
+		}
+
 		updateStatus(ctx.model, ctx);
 	});
 
@@ -124,6 +176,13 @@ export default function codexFastMode(pi: ExtensionAPI) {
 
 			enabled = action === "on";
 			pi.appendEntry(STATE_ENTRY_TYPE, { enabled });
+
+			try {
+				await saveFastModePreference(preferencePath, enabled);
+			} catch (error) {
+				ctx.ui.notify(`Could not persist Codex fast mode preference: ${error}`, "warning");
+			}
+
 			updateStatus(ctx.model, ctx);
 			ctx.ui.notify(describeStatus(ctx.model), "info");
 		},
