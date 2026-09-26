@@ -16,21 +16,8 @@ export interface ModelDescriptor {
 	id?: unknown;
 }
 
-const FAST_MODE_MODEL_IDS = new Set([
-	"gpt-5.4",
-	"gpt-5.5",
-	"gpt-5.6-luna",
-	"gpt-5.6-sol",
-	"gpt-5.6-terra",
-]);
-
 export function supportsCodexFastMode(model: ModelDescriptor | undefined): boolean {
-	return (
-		model?.provider === "openai-codex" &&
-		model.api === "openai-codex-responses" &&
-		typeof model.id === "string" &&
-		FAST_MODE_MODEL_IDS.has(model.id)
-	);
+	return model?.provider === "openai-codex" && model.api === "openai-codex-responses";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

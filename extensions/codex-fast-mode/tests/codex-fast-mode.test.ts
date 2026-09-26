@@ -19,25 +19,25 @@ const supportedModel = {
 	id: "gpt-5.5",
 };
 
-test("recognizes fast-mode Codex models", () => {
+test("recognizes all Codex Responses models regardless of ID", () => {
 	for (const id of [
 		"gpt-5.4",
-		"gpt-5.5",
-		"gpt-5.6-luna",
-		"gpt-5.6-sol",
-		"gpt-5.6-terra",
+		"gpt-5.4-mini",
+		"gpt-5.3-codex-spark",
+		"gpt-6-luna",
+		"gpt-6-astra",
+		"gpt-6-sol",
+		"future-codex-model",
 	]) {
 		assert.equal(
 			supportsCodexFastMode({ ...supportedModel, id }),
 			true,
-			`${id} should support fast mode`,
+			`${id} should be recognized as a Codex Responses model`,
 		);
 	}
 });
 
-test("rejects unsupported models and providers", () => {
-	assert.equal(supportsCodexFastMode({ ...supportedModel, id: "gpt-5.4-mini" }), false);
-	assert.equal(supportsCodexFastMode({ ...supportedModel, id: "gpt-5.3-codex-spark" }), false);
+test("rejects non-Codex providers and APIs", () => {
 	assert.equal(supportsCodexFastMode({ ...supportedModel, provider: "openai" }), false);
 	assert.equal(supportsCodexFastMode({ ...supportedModel, api: "openai-responses" }), false);
 	assert.equal(supportsCodexFastMode(undefined), false);

@@ -2,15 +2,7 @@
 
 A [pi](https://github.com/earendil-works/pi) extension that enables Codex fast mode by default and lets you switch between fast and standard modes.
 
-It adds `service_tier: "priority"` to provider requests for these `openai-codex` models:
-
-- `gpt-5.4`
-- `gpt-5.5`
-- `gpt-5.6-luna`
-- `gpt-5.6-sol`
-- `gpt-5.6-terra`
-
-The extension deliberately leaves unsupported Codex models such as `gpt-5.4-mini` and `gpt-5.3-codex-spark` unchanged.
+It adds `service_tier: "priority"` to requests for every model using pi's `openai-codex` provider and `openai-codex-responses` API. This avoids a model-ID allowlist that would need updates whenever OpenAI adds or renames a Codex model. Models that do not support priority processing may ignore the setting or return an error.
 
 ## Controls
 
@@ -50,7 +42,7 @@ Use the `openai-codex` provider with ChatGPT sign-in to get Codex's credit-based
 
 ## Cost warning
 
-Fast mode increases supported model speed by about 1.5x and consumes credits at a higher rate. As documented by OpenAI, GPT-5.5 and GPT-5.6 use 2.5x Standard credits, while GPT-5.4 uses 2x.
+Fast mode increases supported model speed by about 1.5x and consumes credits at a higher rate. As documented by OpenAI, GPT-5.5, GPT-5.6, and GPT-6 Luna/Astra/Sol use 2.5x Standard credits where available, while GPT-5.4 uses 2x.
 
 See [OpenAI's speed documentation](https://learn.chatgpt.com/docs/agent-configuration/speed).
 
