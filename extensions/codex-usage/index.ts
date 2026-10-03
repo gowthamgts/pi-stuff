@@ -120,13 +120,26 @@ export function extractAccessTokens(auth: unknown): string[] {
 	return tokens
 }
 
-function readAccessTokens(): string[] {
+export function readAccessTokens(provider: unknown, authFiles: readonly string[] = AUTH_FILES): string[] {
+	if (provider !== 'openai' && provider !== 'openai-codex') return []
 	const tokens: string[] = []
-	for (const file of AUTH_FILES) {
+	try {
+		const auth: unknown = JSON.parse(readFileSync(authFiles[0], 'utf8'))
+		if (isRecord(auth)) {
+			const credential = auth[provider]
+			// The openai provider also supports API keys; only ChatGPT OAuth has a subscription quota.
+			if (isRecord(credential) && (provider === 'openai-codex' || credential.type === 'oauth')) {
+				tokens.push(...extractAccessTokens({ [provider]: credential }))
+			}
+		}
+	} catch {
+		// unreadable or unparseable pi auth file
+	}
+	if (provider === 'openai-codex') {
 		try {
-			tokens.push(...extractAccessTokens(JSON.parse(readFileSync(file, 'utf8'))))
+			tokens.push(...extractAccessTokens(JSON.parse(readFileSync(authFiles[1], 'utf8'))))
 		} catch {
-			// unreadable or unparseable auth file
+			// unreadable or unparseable Codex CLI auth file
 		}
 	}
 	return tokens
@@ -170,7 +183,8 @@ export function layoutStatsLine(statsLeft: string, rightSide: string, width: num
 	return statsLeft
 }
 
-export default function codexUsage(pi: ExtensionAPI) {
+export default function codexUsage(pi: ExtensionAPI, options: { authFiles?: readonly string[] } = {}) {
+	const authFiles = options.authFiles ?? AUTH_FILES
 	let quota: QuotaStatus | null = null
 	let currentModel: { provider?: unknown } | undefined
 	let countdownTimer: ReturnType<typeof setInterval> | undefined
@@ -194,12 +208,14 @@ export default function codexUsage(pi: ExtensionAPI) {
 		quotaInFlight = true
 		const requestGeneration = generation
 		try {
-			const nextQuota = await fetchQuotaStatus(readAccessTokens())
+			const tokens = readAccessTokens(currentModel?.provider, authFiles)
+			const nextQuota = tokens.length ? await fetchQuotaStatus(tokens) : null
 			if (requestGeneration !== generation) return
 			quota = nextQuota
 			updateStatus()
 		} finally {
 			quotaInFlight = false
+			if (requestGeneration !== generation && currentModel?.provider !== undefined) void refreshQuota()
 		}
 	}
 
@@ -212,7 +228,8 @@ export default function codexUsage(pi: ExtensionAPI) {
 		if (ctx.mode !== 'tui') return
 
 		updateStatus = () => {
-			if (currentModel?.provider !== 'openai-codex') {
+			if (currentModel?.provider !== 'openai-codex' &&
+				(currentModel?.provider !== 'openai' || readAccessTokens('openai', authFiles).length === 0)) {
 				ctx.ui.setStatus(CODEX_USAGE_STATUS_KEY, undefined)
 				return
 			}
@@ -240,8 +257,15 @@ export default function codexUsage(pi: ExtensionAPI) {
 		void refreshQuota()
 	})
 
-	pi.on('model_select', (event) => {
+	pi.on('model_select', (event, ctx) => {
+		const previousProvider = currentModel?.provider
 		currentModel = event.model
+		if (previousProvider !== currentModel?.provider) {
+			generation++
+			quota = null
+			if (ctx.mode === 'tui' &&
+				(currentModel?.provider === 'openai-codex' || currentModel?.provider === 'openai')) void refreshQuota()
+		}
 		updateStatus()
 	})
 

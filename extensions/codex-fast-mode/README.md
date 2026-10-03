@@ -2,7 +2,7 @@
 
 A [pi](https://github.com/earendil-works/pi) extension that enables Codex fast mode by default and lets you switch between fast and standard modes.
 
-It adds `service_tier: "priority"` to requests for every model using pi's `openai-codex` provider and `openai-codex-responses` API. This avoids a model-ID allowlist that would need updates whenever OpenAI adds or renames a Codex model. Models that do not support priority processing may ignore the setting or return an error.
+It adds `service_tier: "priority"` to requests for models using pi's `openai` provider with the `openai-responses` API or the legacy `openai-codex` provider with the `openai-codex-responses` API. This avoids a model-ID allowlist that would need updates whenever OpenAI adds or renames a model. Models that do not support priority processing may ignore the setting or return an error.
 
 ## Controls
 
@@ -38,7 +38,7 @@ Or try it without installing:
 pi -e ./extensions/codex-fast-mode/index.ts
 ```
 
-Use the `openai-codex` provider with ChatGPT sign-in to get Codex's credit-based fast mode. Direct API-key usage applies API Priority processing and its separate token pricing instead.
+Use the `openai` provider (or legacy `openai-codex`) with ChatGPT sign-in to get Codex's credit-based fast mode. Direct API-key usage with `openai` applies API Priority processing and its separate token pricing instead.
 
 ## Cost warning
 

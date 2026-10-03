@@ -37,9 +37,17 @@ test("recognizes all Codex Responses models regardless of ID", () => {
 	}
 });
 
-test("rejects non-Codex providers and APIs", () => {
+test("supports the new OpenAI Responses provider without restricting model IDs", () => {
+	for (const id of ["gpt-5.5", "gpt-6-luna", "future-codex-model"]) {
+		assert.equal(supportsCodexFastMode({ provider: "openai", api: "openai-responses", id }), true);
+	}
+});
+
+test("rejects other providers and mismatched APIs", () => {
+	assert.equal(supportsCodexFastMode({ ...supportedModel, provider: "deepseek" }), false);
 	assert.equal(supportsCodexFastMode({ ...supportedModel, provider: "openai" }), false);
 	assert.equal(supportsCodexFastMode({ ...supportedModel, api: "openai-responses" }), false);
+	assert.equal(supportsCodexFastMode({ provider: "openai", api: "openai-completions" }), false);
 	assert.equal(supportsCodexFastMode(undefined), false);
 });
 
@@ -161,6 +169,18 @@ test("/fast toggles requests, status, and persisted state", async (t) => {
 	assert.deepEqual(appended.at(-1), {
 		customType: "codex-fast-mode-state",
 		data: { enabled: true },
+	});
+
+	ctx.model = { provider: "openai", api: "openai-responses", id: "gpt-5.5" };
+	handlers.get("model_select")?.({ model: ctx.model }, ctx);
+	assert.equal(statuses.at(-1), "⚡ Codex fast");
+	assert.deepEqual(requestHandler({ payload: { model: "gpt-5.5" } }, ctx), {
+		model: "gpt-5.5",
+		service_tier: "priority",
+	});
+	await fastCommand.handler("off", ctx);
+	assert.deepEqual(requestHandler({ payload: { model: "gpt-5.5", service_tier: "priority" } }, ctx), {
+		model: "gpt-5.5",
 	});
 
 	await fastCommand.handler("invalid", ctx);

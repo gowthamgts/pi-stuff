@@ -17,7 +17,8 @@ export interface ModelDescriptor {
 }
 
 export function supportsCodexFastMode(model: ModelDescriptor | undefined): boolean {
-	return model?.provider === "openai-codex" && model.api === "openai-codex-responses";
+	return (model?.provider === "openai-codex" && model.api === "openai-codex-responses") ||
+		(model?.provider === "openai" && model.api === "openai-responses");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

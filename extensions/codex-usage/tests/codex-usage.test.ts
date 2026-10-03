@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import codexUsage, {
 	extractAccessTokens,
 	fetchQuotaStatus,
@@ -9,6 +12,7 @@ import codexUsage, {
 	formatTokens,
 	layoutStatsLine,
 	parseQuotaStatus,
+	readAccessTokens,
 } from '../index.ts'
 
 test('formats token counts like pi\'s default footer', () => {
@@ -128,6 +132,7 @@ test('formats five-hour and weekly quota for shared footer status', () => {
 test('extracts access tokens from pi and Codex CLI auth shapes', () => {
 	assert.deepEqual(extractAccessTokens({ tokens: { access_token: 'codex-token' } }), ['codex-token'])
 	assert.deepEqual(extractAccessTokens({ 'openai-codex': { access: 'pi-token' } }), ['pi-token'])
+	assert.deepEqual(extractAccessTokens({ openai: { type: 'oauth', access: 'new-token' } }), ['new-token'])
 	assert.deepEqual(
 		extractAccessTokens({ tokens: { access_token: 'codex-token' }, 'openai-codex': { access: 'pi-token' } }),
 		['codex-token', 'pi-token'],
@@ -135,6 +140,23 @@ test('extracts access tokens from pi and Codex CLI auth shapes', () => {
 	assert.deepEqual(extractAccessTokens({ OPENAI_API_KEY: 'sk-123' }), [])
 	assert.deepEqual(extractAccessTokens(null), [])
 	assert.deepEqual(extractAccessTokens('junk'), [])
+})
+
+test('reads OAuth for the selected provider, without using API keys or another provider\'s token', async (t) => {
+	const dir = await mkdtemp(join(tmpdir(), 'codex-usage-'))
+	t.after(() => rm(dir, { recursive: true, force: true }))
+	const files = [join(dir, 'pi.json'), join(dir, 'cli.json')]
+	await writeFile(files[0], JSON.stringify({
+		openai: { type: 'oauth', access: 'new-token' },
+		'openai-codex': { type: 'oauth', access: 'old-token' },
+	}))
+	await writeFile(files[1], JSON.stringify({ tokens: { access_token: 'cli-token' } }))
+	assert.deepEqual(readAccessTokens('openai', files), ['new-token'])
+	assert.deepEqual(readAccessTokens('openai-codex', files), ['old-token', 'cli-token'])
+	assert.deepEqual(readAccessTokens('deepseek', files), [])
+	await writeFile(files[0], JSON.stringify({ openai: { type: 'api_key', key: 'sk-secret' } }))
+	assert.deepEqual(readAccessTokens('openai', files), [])
+	assert.deepEqual(readAccessTokens('openai-codex', files), ['cli-token'])
 })
 
 test('fetches quota status from the usage endpoint', async () => {
@@ -199,11 +221,17 @@ test('publishes quota as a shared status without replacing the footer', async ()
 		}),
 	})) as unknown as typeof fetch
 
+	const dir = await mkdtemp(join(tmpdir(), 'codex-usage-'))
+	const authFiles = [join(dir, 'pi.json'), join(dir, 'cli.json')]
+	await writeFile(authFiles[0], JSON.stringify({
+		openai: { type: 'oauth', access: 'new-token' },
+		'openai-codex': { type: 'oauth', access: 'old-token' },
+	}))
 	codexUsage({
 		on(event: string, handler: (event: unknown, ctx: any) => unknown) {
 			handlers.set(event, handler)
 		},
-	} as any)
+	} as any, { authFiles })
 
 	const ctx = {
 		mode: 'tui',
@@ -224,11 +252,21 @@ test('publishes quota as a shared status without replacing the footer', async ()
 		assert.equal(statuses.get('codex-usage'), '5h - 0%, 7d - 75% · resets in 48m')
 		assert.equal(footerCalls, 0)
 
+		handlers.get('model_select')?.({ model: { provider: 'openai', api: 'openai-responses' } }, ctx)
+		await new Promise((resolve) => setTimeout(resolve, 20))
+		assert.equal(statuses.get('codex-usage'), '5h - 0%, 7d - 75% · resets in 48m')
+
+		await writeFile(authFiles[0], JSON.stringify({ openai: { type: 'api_key', key: 'sk-secret' } }))
+		handlers.get('model_select')?.({ model: { provider: 'deepseek' } }, ctx)
+		handlers.get('model_select')?.({ model: { provider: 'openai', api: 'openai-responses' } }, ctx)
+		assert.equal(statuses.has('codex-usage'), false)
+
 		handlers.get('model_select')?.({ model: { provider: 'deepseek' } }, ctx)
 		assert.equal(statuses.has('codex-usage'), false)
 	} finally {
 		globalThis.fetch = realFetch
 		handlers.get('session_shutdown')?.({}, ctx)
+		await rm(dir, { recursive: true, force: true })
 	}
 
 	assert.equal(statuses.has('codex-usage'), false)
