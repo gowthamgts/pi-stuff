@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import codexUsage, {
 	extractAccessTokens,
+	fetchOpenAIQuotaStatus,
 	fetchQuotaStatus,
 	formatCwdForFooter,
 	formatDuration,
@@ -13,6 +14,7 @@ import codexUsage, {
 	layoutStatsLine,
 	parseQuotaStatus,
 	readAccessTokens,
+	resolveOAuthTokens,
 } from '../index.ts'
 
 test('formats token counts like pi\'s default footer', () => {
@@ -159,6 +161,32 @@ test('reads OAuth for the selected provider, without using API keys or another p
 	assert.deepEqual(readAccessTokens('openai-codex', files), ['cli-token'])
 })
 
+test('resolves a fresh companion Pi OAuth credential, never a CLI or proxy token', async (t) => {
+	const dir = await mkdtemp(join(tmpdir(), 'codex-usage-'))
+	t.after(() => rm(dir, { recursive: true, force: true }))
+	const files = [join(dir, 'pi.json'), join(dir, 'cli.json')]
+	await writeFile(files[0], JSON.stringify({ 'openai-codex': { type: 'oauth', access: 'stale-token' } }))
+	await writeFile(files[1], JSON.stringify({ tokens: { access_token: 'cli-token' } }))
+	let auth: any = { auth: { apiKey: 'fresh-token' } }
+	const ctx: any = {
+		model: { provider: 'openai' },
+		modelRegistry: {
+			getAll: () => [{ provider: 'openai-codex' }],
+			isUsingOAuth: () => true,
+			getProviderAuth: async () => auth,
+		},
+	}
+	assert.deepEqual(await resolveOAuthTokens('openai-codex', ctx, files), ['fresh-token'])
+	auth = { auth: { apiKey: 'fresh-token', baseUrl: 'https://proxy.example' } }
+	assert.deepEqual(await resolveOAuthTokens('openai-codex', ctx, files), [])
+	ctx.modelRegistry.isUsingOAuth = () => false
+	auth = { auth: { apiKey: 'api-key' } }
+	assert.deepEqual(await resolveOAuthTokens('openai-codex', ctx, files), [])
+	await writeFile(files[0], '{}')
+	ctx.modelRegistry.isUsingOAuth = () => true
+	assert.deepEqual(await resolveOAuthTokens('openai-codex', ctx, files), [])
+})
+
 test('fetches quota status from the usage endpoint', async () => {
 	const realFetch = globalThis.fetch
 	const nowSec = Math.floor(Date.now() / 1000)
@@ -203,6 +231,42 @@ test('right-aligns the model name next to the stats', () => {
 	assert.equal(layoutStatsLine('aaa', 'b', 3), 'aaa')
 })
 
+function openaiTestToken(clientId = 'oaiapp_test'): string {
+	return `header.${Buffer.from(JSON.stringify({
+		iss: 'https://auth.openai.com', aud: 'https://api.openai.com/v1',
+		scope: 'chatgpt.tokens.use.direct', client_id: clientId,
+	})).toString('base64url')}.signature`
+}
+
+test('requires a matching app registration before reading OpenAI plan usage', async () => {
+	const realFetch = globalThis.fetch
+	const urls: string[] = []
+	let apps: unknown = { items: [{ id: 'oaiapp_other' }] }
+	globalThis.fetch = (async (url: string) => {
+		urls.push(url)
+		return { ok: true, json: async () => url.endsWith('/chatpass/apps') ? apps : {
+			rate_limit: { primary_window: { used_percent: 15 } },
+		} }
+	}) as unknown as typeof fetch
+	try {
+		assert.equal(await fetchOpenAIQuotaStatus('opaque-token', 'codex-token'), null)
+		assert.deepEqual(urls, [])
+		assert.equal(await fetchOpenAIQuotaStatus(openaiTestToken(), 'codex-token'), null)
+		assert.equal(urls.length, 1)
+		apps = { items: [{ id: 'oaiapp_test' }, { id: 'oaiapp_test' }] }
+		assert.equal(await fetchOpenAIQuotaStatus(openaiTestToken(), 'codex-token'), null)
+		assert.equal(urls.length, 2)
+		apps = { items: [{ id: 'oaiapp_test' }] }
+		assert.equal((await fetchOpenAIQuotaStatus(openaiTestToken(), 'codex-token'))?.remainingPercent, 85)
+		assert.deepEqual(urls.slice(2), [
+			'https://chatgpt.com/backend-api/wham/usage/chatpass/apps',
+			'https://chatgpt.com/backend-api/wham/usage',
+		])
+	} finally {
+		globalThis.fetch = realFetch
+	}
+})
+
 test('publishes quota as a shared status without replacing the footer', async () => {
 	const handlers = new Map<string, (event: unknown, ctx: any) => unknown>()
 	const statuses = new Map<string, string>()
@@ -210,9 +274,9 @@ test('publishes quota as a shared status without replacing the footer', async ()
 
 	const realFetch = globalThis.fetch
 	const nowSec = Math.floor(Date.now() / 1000)
-	globalThis.fetch = (async () => ({
+	globalThis.fetch = (async (url: string) => ({
 		ok: true,
-		json: async () => ({
+		json: async () => url.endsWith('/chatpass/apps') ? { items: [{ id: 'oaiapp_test' }] } : ({
 			rate_limit: {
 				limit_reached: true,
 				primary_window: { used_percent: 100, reset_at: nowSec + 2_874 },
@@ -224,7 +288,7 @@ test('publishes quota as a shared status without replacing the footer', async ()
 	const dir = await mkdtemp(join(tmpdir(), 'codex-usage-'))
 	const authFiles = [join(dir, 'pi.json'), join(dir, 'cli.json')]
 	await writeFile(authFiles[0], JSON.stringify({
-		openai: { type: 'oauth', access: 'new-token' },
+		openai: { type: 'oauth', access: openaiTestToken() },
 		'openai-codex': { type: 'oauth', access: 'old-token' },
 	}))
 	codexUsage({

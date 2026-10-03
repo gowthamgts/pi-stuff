@@ -1,6 +1,6 @@
 {
   "name": "@gowthamgts/pi-codex-usage",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Remaining Codex subscription quota in pi's footer.",
   "type": "module",
   "license": "MIT",
