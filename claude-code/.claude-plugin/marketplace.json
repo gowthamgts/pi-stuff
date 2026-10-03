@@ -1,0 +1,12 @@
+{
+  "name": "pi-stuff",
+  "description": "Claude Code ports of pi-stuff extensions",
+  "owner": { "name": "Gowtham Gopalakrishnan" },
+  "plugins": [
+    {
+      "name": "git-commit",
+      "source": "./plugins/git-commit",
+      "description": "Short AI-written commits: /commit, /commit-push, /commit-push-pr"
+    }
+  ]
+}

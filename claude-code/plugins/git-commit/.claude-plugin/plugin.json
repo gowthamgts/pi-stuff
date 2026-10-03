@@ -1,0 +1,7 @@
+{
+  "name": "git-commit",
+  "version": "0.1.0",
+  "description": "Stage all changes and commit with a concise AI-written subject; optionally push and open a PR.",
+  "author": { "name": "Gowtham Gopalakrishnan" },
+  "license": "MIT"
+}
