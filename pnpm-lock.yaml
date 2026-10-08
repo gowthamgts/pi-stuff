@@ -56,6 +56,15 @@ importers:
         specifier: ^0.6.0
         version: 0.6.0
 
+  extensions/youtube-summary:
+    dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '*'
+        version: 0.81.1(ws@8.21.1)(zod@4.4.3)
+      youtube-transcript-plus:
+        specifier: ^2.0.3
+        version: 2.0.3
+
 packages:
 
   '@anthropic-ai/sdk@0.91.1':
@@ -622,6 +631,10 @@ packages:
     resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
     engines: {node: '>= 14.6'}
     hasBin: true
+
+  youtube-transcript-plus@2.0.3:
+    resolution: {integrity: sha512-7bAu4SMczQBin8JOiux3NOXOTxnLps9FBhVvyVsb4WfIYjNlVt7PXz8SdfNP/enZGfGpv1gCokzinwqXMnQGmQ==}
+    engines: {node: '>=20.0.0'}
 
   zod-to-json-schema@3.25.2:
     resolution: {integrity: sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA==}
@@ -1307,6 +1320,8 @@ snapshots:
   ws@8.21.1: {}
 
   yaml@2.9.0: {}
+
+  youtube-transcript-plus@2.0.3: {}
 
   zod-to-json-schema@3.25.2(zod@4.4.3):
     dependencies:

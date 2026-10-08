@@ -12,6 +12,7 @@ A collection of pi extensions. Each extension lives in its own independently ins
 | [`git-status`](./extensions/git-status) | Displays branch, worktree, and file status alongside token usage in the footer. |
 | [`silicon-valley`](./extensions/silicon-valley) | Displays a random *Silicon Valley* quote when a pi session starts. |
 | [`typesafe-bash-guard`](./extensions/typesafe-bash-guard) | Reviews bash commands with TypeSafe AI and gates potentially harmful execution. |
+| [`youtube-summary`](./extensions/youtube-summary) | Summarizes YouTube videos without adding transcripts to chat context. |
 
 ## Install
 
@@ -30,6 +31,7 @@ pi install ./extensions/git-commit
 pi install ./extensions/git-status
 pi install ./extensions/silicon-valley
 pi install ./extensions/typesafe-bash-guard
+pi install ./extensions/youtube-summary
 ```
 
 Install a published extension from npm:
@@ -52,6 +54,7 @@ Restart pi or run `/reload` after installing an extension.
 - **Git commit:** Run `/commit` in a Git repository to stage all changes and commit them with a lowercase AI-written subject of at most 40 characters.
 - **Git status:** Start pi inside a Git repository. The footer automatically shows the branch, ahead/behind and file counts. In a linked worktree it also shows `@ <worktree-directory>`; the main worktree keeps the branch-only display.
 - **Silicon Valley:** A random quote appears whenever a new pi session starts.
+- **YouTube summary:** Run `/youtube-summary <YouTube URL or video ID>` for one short overview sentence and critical takeaways. Captions are processed in a separate model call; only the summary enters your chat context.
 - **TypeSafe bash guard:** Set `TYPESAFE_API_KEY` to a plaintext key or 1Password `op://...` reference; agent and user bash commands are then reviewed before execution, with confirmation required for potentially harmful commands and harmful commands blocked.
 
 `codex-usage` publishes its quota as an extension status, so it can be used together with `git-status`; the Git footer preserves pi's token, cache-hit, cost, context, model, and extension-status information. See each extension's linked README for display details, authentication notes, and supported models.
