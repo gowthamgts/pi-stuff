@@ -39,7 +39,7 @@ The command aims for 3–7 substantive takeaways and fewer than 300 words, using
 ## Context and model usage
 
 - Captions are fetched with `youtube-transcript-plus`, the library used by the inspiration skill. English captions (`en`) are requested first, then a regional English track such as `en-US` if available. If no English track exists, the command falls back to the default available captions and summarizes them in English. Network and access errors do not trigger a language fallback.
-- The full captions are sent to your **currently selected Pi model in an isolated request**, using your existing Pi authentication. Your chat history, system prompt, tools, and other skills are not included in that request.
+- The full captions are processed by your **currently selected Pi model in isolated requests**, using your existing Pi authentication. Short videos use one request. Long captions are split into consecutive parts, summarized separately, and combined into a final summary; intermediate notes are condensed in further rounds if needed. No captions are silently dropped. Your chat history, system prompt, tools, and other skills are not included in those requests.
 - **Only the final summary and video link are added to the conversation.** There is no tool definition or skill prompt added to every chat request.
 - This protects the main chat's context budget, but the separate summary call still processes the captions and consumes model tokens/credits. The caption text is sent to the selected model provider.
 - Captions are held in memory during the command; the extension does not save them to disk or session entries.
@@ -49,8 +49,8 @@ The command aims for 3–7 substantive takeaways and fewer than 300 words, using
 - Videos need accessible manual or auto-generated captions. Private, restricted, captionless, or blocked videos may fail. YouTube changes and rate limits can also break fetching.
 - Summaries are caption-based: they cannot describe visuals that are not explained aloud. Auto-generated caption errors can affect accuracy.
 - The model is explicitly instructed to write the overview and all takeaways in English, regardless of caption language. A script guard detects non-Latin letters (including Arabic) and requests one English rewrite of the short draft; if that still fails the check, no summary is displayed. This guard is not a full language detector for languages written in Latin characters. The rewrite, when needed, consumes an additional model call but does not add captions or the rejected draft to chat history.
-- Requests time out after three minutes. Only one summary runs at a time.
-- The caption limit is the smaller of 120,000 characters and the selected model's context window minus a 4,000-token reserve (using a conservative character budget). Longer captions fail explicitly rather than being silently truncated. This is a safety budget, not an exact tokenizer calculation.
+- Caption fetching and each model request time out after three minutes. Long videos can take longer overall and consume multiple model calls. Only one summary runs at a time.
+- Each caption/notes chunk is limited to the smaller of 120,000 UTF-8 bytes and the selected model's context window minus a 4,000-token reserve for instructions and output. Bytes conservatively bound tokens, including non-English text; this is a safety budget, not an exact tokenizer calculation. The limit applies per chunk, not per video. Chunked summarization can lose nuance, although every caption is processed. If any request fails, no partial summary is published.
 
 ## Development
 

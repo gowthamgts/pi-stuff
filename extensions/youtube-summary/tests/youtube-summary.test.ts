@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { YoutubeTranscript, YoutubeTranscriptNotAvailableLanguageError } from "youtube-transcript-plus";
-import youtubeSummary, { hasNonLatinLetters, parseVideoId, prepareTranscript, SUMMARY_PROMPT } from "../index.ts";
+import youtubeSummary, { hasNonLatinLetters, parseVideoId, prepareTranscript, splitSummaryInput, SUMMARY_PROMPT } from "../index.ts";
 
 const id = "EBw7gsDPAYQ";
 
@@ -20,11 +20,26 @@ test("rejects malformed inputs and lookalike domains", () => {
 	}
 });
 
-test("keeps all captions or fails explicitly rather than truncating", () => {
-	assert.equal(prepareTranscript([{ text: " one " }, { text: "" }, { text: "two" }], 128_000), "one\ntwo");
-	assert.throws(() => prepareTranscript([], 128_000), /No captions/);
-	assert.throws(() => prepareTranscript([{ text: "x".repeat(120_001) }], 200_000), /too long/);
-	assert.throws(() => prepareTranscript([{ text: "x".repeat(5_000) }], 8_000), /too long/);
+test("keeps all captions, including transcripts beyond the old hard limit", () => {
+	assert.equal(prepareTranscript([{ text: " one " }, { text: "" }, { text: "two" }]), "one\ntwo");
+	assert.throws(() => prepareTranscript([]), /No captions/);
+	const long = "x".repeat(240_001);
+	assert.equal(prepareTranscript([{ text: long }]), long);
+});
+
+test("splits all input within the model budget without corrupting Unicode", () => {
+	for (const text of ["x".repeat(240_001), "视频😀 captions\n".repeat(10_000)]) {
+		for (const contextWindow of [8_000, 200_000]) {
+			const chunks = splitSummaryInput(text, contextWindow);
+			assert.ok(chunks.length > 1);
+			assert.equal(chunks.join(""), text);
+			for (const chunk of chunks) {
+				assert.ok(Buffer.byteLength(chunk) <= Math.min(120_000, contextWindow - 4_000));
+				assert.equal(Buffer.from(chunk).toString(), chunk);
+			}
+		}
+	}
+	assert.throws(() => splitSummaryInput("captions", 4_000), /context window is too small/);
 });
 
 function harness(complete?: (model: any, context: any, options: any) => Promise<any>) {
@@ -77,6 +92,41 @@ test("summarizes in an isolated request and sends only summary to the session", 
 	assert.match(h.sent[0].message.content, /Critical takeaways/);
 	assert.ok(!JSON.stringify(h.sent).includes(transcript));
 	assert.equal(h.sent[0].options.triggerTurn, false);
+});
+
+test("summarizes every part of long captions and publishes only the combined summary", async (t) => {
+	const transcript = "START " + "x".repeat(240_001) + " END";
+	t.mock.method(YoutubeTranscript, "fetchTranscript", async () => [{ text: transcript }]);
+	const h = harness();
+	await h.handler(id, h.ctx);
+	assert.equal(h.calls.length, 4);
+	const parts = h.calls.slice(0, 3).map((call) => call.context.messages[0].content[0].text.split("\n\n").slice(1).join("\n\n"));
+	assert.equal(parts.join(""), transcript);
+	assert.match(h.calls[3].context.messages[0].content[0].text, /Combine these consecutive summary notes/);
+	assert.ok(!h.calls[3].context.messages[0].content[0].text.includes("START"));
+	assert.equal(h.sent.length, 1);
+	assert.ok(!JSON.stringify(h.sent).includes("START"));
+});
+
+test("reduces notes over multiple rounds when they do not fit a single request", async (t) => {
+	t.mock.method(YoutubeTranscript, "fetchTranscript", async () => [{ text: "x".repeat(12_001) }]);
+	let count = 0;
+	const h = harness(async () => ({ stopReason: "stop", content: [{ type: "text", text: ++count <= 4 ? "n".repeat(1_100) : "Final summary" }] }));
+	h.ctx.model.contextWindow = 8_000;
+	await h.handler(id, h.ctx);
+	assert.equal(h.calls.length, 7); // Four caption parts, two note parts, one final synthesis.
+	assert.equal(h.sent.length, 1);
+});
+
+test("a failed chunk never publishes a partial summary", async (t) => {
+	t.mock.method(YoutubeTranscript, "fetchTranscript", async () => [{ text: "x".repeat(120_001) }]);
+	let count = 0;
+	const h = harness(async () => ++count === 1
+		? { stopReason: "stop", content: [{ type: "text", text: "Partial notes" }] }
+		: { stopReason: "error", errorMessage: "Request failed", content: [] });
+	await h.handler(id, h.ctx);
+	assert.equal(h.sent.length, 0);
+	assert.match(h.notices.at(-1).message, /Request failed/);
 });
 
 test("prefers regional English captions before falling back to another language", async (t) => {

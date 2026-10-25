@@ -2,6 +2,8 @@
 
 This repository contains independently installable extensions for the pi coding agent. Detailed implementation, installation, testing, publishing, and licensing information belongs in the root README and each extension's own README.
 
+IMPORTANT: if you make any changes to any of the extensions, based on the level bump the version at package.json for that extension. make sure we're following semantic versioning. If unsure about versioning, check with the user instead of making a decision yourself.
+
 ## Extensions
 
 ### Codex fast mode
