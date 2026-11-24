@@ -7,10 +7,11 @@ A collection of pi extensions. Each extension lives in its own independently ins
 | Extension | Description |
 | --- | --- |
 | [`codex-fast-mode`](./extensions/codex-fast-mode) | Controls fast and standard modes for supported OpenAI Codex models. |
-| [`codex-usage`](./extensions/codex-usage) | Displays remaining Codex subscription quota in the footer. |
+| [`codex-usage`](./extensions/codex-usage) | **Deprecated**, use `subscription-usage`. Displays remaining Codex subscription quota in the footer. |
 | [`git-commit`](./extensions/git-commit) | Stages changes and commits them with a short AI-written subject. |
 | [`git-status`](./extensions/git-status) | Displays branch, worktree, and file status alongside token usage in the footer. |
 | [`silicon-valley`](./extensions/silicon-valley) | Displays a random *Silicon Valley* quote when a pi session starts. |
+| [`subscription-usage`](./extensions/subscription-usage) | Displays remaining Claude or Codex subscription quota in the footer, based on the selected model. |
 | [`typesafe-bash-guard`](./extensions/typesafe-bash-guard) | Reviews bash commands with TypeSafe AI and gates potentially harmful execution. |
 | [`youtube-summary`](./extensions/youtube-summary) | Summarizes YouTube videos without adding transcripts to chat context. |
 
@@ -26,10 +27,10 @@ Install one extension from this checkout:
 
 ```sh
 pi install ./extensions/codex-fast-mode
-pi install ./extensions/codex-usage
 pi install ./extensions/git-commit
 pi install ./extensions/git-status
 pi install ./extensions/silicon-valley
+pi install ./extensions/subscription-usage
 pi install ./extensions/typesafe-bash-guard
 pi install ./extensions/youtube-summary
 ```
@@ -38,10 +39,10 @@ Install a published extension from npm:
 
 ```sh
 pi install npm:@gowthamgts/pi-codex-fast-mode
-pi install npm:@gowthamgts/pi-codex-usage
 pi install npm:@gowthamgts/pi-git-commit
 pi install npm:@gowthamgts/pi-git-status
 pi install npm:@gowthamgts/pi-silicon-valley
+pi install npm:@gowthamgts/pi-subscription-usage
 pi install npm:@gowthamgts/pi-typesafe-bash-guard
 ```
 
@@ -57,7 +58,7 @@ Restart pi or run `/reload` after installing an extension.
 - **YouTube summary:** Run `/youtube-summary <YouTube URL or video ID>` for one short overview sentence and critical takeaways. Captions are processed in a separate model call; only the summary enters your chat context.
 - **TypeSafe bash guard:** Set `TYPESAFE_API_KEY` to a plaintext key or 1Password `op://...` reference; agent and user bash commands are then reviewed before execution, with confirmation required for potentially harmful commands and harmful commands blocked.
 
-`codex-usage` publishes its quota as an extension status, so it can be used together with `git-status`; the Git footer preserves pi's token, cache-hit, cost, context, model, and extension-status information. See each extension's linked README for display details, authentication notes, and supported models.
+`subscription-usage` publishes its quota as an extension status, so it works with footers that render extension statuses; the `git-status` footer preserves pi's token, cache-hit, cost, context, model, and extension-status information. See each extension's linked README for display details, authentication notes, and supported models.
 
 ## Add an extension
 
