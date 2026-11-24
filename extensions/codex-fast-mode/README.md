@@ -16,7 +16,7 @@ Fast mode defaults to on until you change it. The selected mode is saved globall
 
 ## Shared status key
 
-The indicator is published under the `CODEX_FOOTER_STATUS_KEY` (`codex-custom-footer`) status slot. It appears alongside the separate quota status from [`codex-usage`](../codex-usage) in pi's default footer and in compatible custom footers such as [`git-status`](../git-status).
+The indicator is published under the `CODEX_FOOTER_STATUS_KEY` (`codex-custom-footer`) status slot. It appears in pi's default footer and in custom footers that render extension statuses.
 
 ## Install
 

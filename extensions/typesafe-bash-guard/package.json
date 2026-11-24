@@ -1,6 +1,6 @@
 {
   "name": "@gowthamgts/pi-typesafe-bash-guard",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A pi extension that uses TypeSafe AI to review and gate bash commands before execution.",
   "type": "module",
   "license": "MIT",
@@ -37,7 +37,7 @@
     "check:load": "pi --offline --no-extensions -e ./index.ts --list-models openai-codex"
   },
   "dependencies": {
-    "@typesafe-ai/sdk": "^0.6.0"
+    "@typesafe-ai/sdk": "^0.7.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

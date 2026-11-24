@@ -1,7 +1,7 @@
 {
   "name": "@gowthamgts/pi-codex-usage",
-  "version": "1.2.1",
-  "description": "Remaining Codex subscription quota in pi's footer.",
+  "version": "1.2.2",
+  "description": "[Deprecated: use @gowthamgts/pi-subscription-usage] Remaining Codex subscription quota in pi's footer.",
   "type": "module",
   "license": "MIT",
   "author": "Gowtham Gopalakrishnan",

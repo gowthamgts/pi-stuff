@@ -203,7 +203,7 @@ test("renders Git status on the token-usage footer line", async () => {
 					{
 						getExtensionStatuses: () => new Map([
 							["codex-custom-footer", "⚡ Codex fast"],
-							["codex-usage", "5h - 15%, 7d - 75%"],
+							["other-extension", "5h - 15%, 7d - 75%"],
 						]),
 					},
 				);

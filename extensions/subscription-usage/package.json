@@ -1,0 +1,58 @@
+{
+  "name": "@gowthamgts/pi-subscription-usage",
+  "version": "1.0.0",
+  "description": "Remaining Anthropic (Claude) and Codex subscription quota in pi's footer, selected by the active model.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Gowtham Gopalakrishnan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gowthamgts/pi-stuff.git",
+    "directory": "extensions/subscription-usage"
+  },
+  "homepage": "https://github.com/gowthamgts/pi-stuff/tree/main/extensions/subscription-usage#readme",
+  "bugs": {
+    "url": "https://github.com/gowthamgts/pi-stuff/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "pi-coding-agent",
+    "openai",
+    "openai-codex",
+    "anthropic",
+    "claude",
+    "codex",
+    "chatgpt",
+    "subscription",
+    "usage",
+    "tokens",
+    "footer",
+    "tui"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "index.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.ts",
+    "check:load": "pi --offline --no-extensions -e ./index.ts --list-models"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

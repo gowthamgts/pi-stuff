@@ -12,9 +12,9 @@ const AUTH_FILES = [
 ]
 const QUOTA_URL = 'https://chatgpt.com/backend-api/wham/usage'
 const APPS_URL = `${QUOTA_URL}/chatpass/apps`
-/** Status slot published by codex-fast-mode. Retained for package compatibility. */
+/** Legacy status slot, retained for package compatibility. */
 export const CODEX_FOOTER_STATUS_KEY = 'codex-custom-footer'
-/** Quota status consumed by pi's default footer and custom footers such as git-status. */
+/** Quota status consumed by pi's default footer and custom footers that render extension statuses. */
 export const CODEX_USAGE_STATUS_KEY = 'codex-usage'
 const MINUTE_MS = 60 * 1000
 const QUOTA_REFRESH_MS = 5 * MINUTE_MS

@@ -44,6 +44,15 @@ importers:
         specifier: '*'
         version: 0.81.1(ws@8.21.1)(zod@4.4.3)
 
+  extensions/subscription-usage:
+    dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '*'
+        version: 0.81.1(ws@8.21.1)(zod@4.4.3)
+      '@earendil-works/pi-tui':
+        specifier: '*'
+        version: 0.81.1
+
   extensions/typesafe-bash-guard:
     dependencies:
       '@earendil-works/pi-coding-agent':
@@ -53,8 +62,8 @@ importers:
         specifier: '*'
         version: 0.81.1
       '@typesafe-ai/sdk':
-        specifier: ^0.6.0
-        version: 0.6.0
+        specifier: ^0.7.0
+        version: 0.7.0
 
   extensions/youtube-summary:
     dependencies:
@@ -62,8 +71,8 @@ importers:
         specifier: '*'
         version: 0.81.1(ws@8.21.1)(zod@4.4.3)
       youtube-transcript-plus:
-        specifier: ^2.0.3
-        version: 2.0.3
+        specifier: ^2.0.5
+        version: 2.0.5
 
 packages:
 
@@ -364,9 +373,9 @@ packages:
   '@types/retry@0.12.0':
     resolution: {integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==}
 
-  '@typesafe-ai/sdk@0.6.0':
-    resolution: {integrity: sha512-IddX+Q0XM+VagOUZFeP7wZjaO4SHMdvnh2zEBdrZZnXedWI3BNK1lKhMx3ayrkFWvVLbVcUHJy6AVZlY+e6Jaw==}
-    engines: {node: '>=20'}
+  '@typesafe-ai/sdk@0.7.0':
+    resolution: {integrity: sha512-Yg3OZArCQMJx98ut8QVkhx3rFo9ON7pz8Hjzv8c3FGz69Sk8jYftLOlz+Wf6kq6jol/1m08aBnjRAzJr2x3GoQ==}
+    engines: {node: '>=22'}
 
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
@@ -632,8 +641,8 @@ packages:
     engines: {node: '>= 14.6'}
     hasBin: true
 
-  youtube-transcript-plus@2.0.3:
-    resolution: {integrity: sha512-7bAu4SMczQBin8JOiux3NOXOTxnLps9FBhVvyVsb4WfIYjNlVt7PXz8SdfNP/enZGfGpv1gCokzinwqXMnQGmQ==}
+  youtube-transcript-plus@2.0.5:
+    resolution: {integrity: sha512-bOr4qOeI3k/cA8gJlGTw2udCFq67C96AXnqNVsn+/3Jsp+EAcTiD9Mnf5PPwp2tRbjK7a+xn+YvfJKCqHHSQwQ==}
     engines: {node: '>=20.0.0'}
 
   zod-to-json-schema@3.25.2:
@@ -1090,7 +1099,7 @@ snapshots:
 
   '@types/retry@0.12.0': {}
 
-  '@typesafe-ai/sdk@0.6.0': {}
+  '@typesafe-ai/sdk@0.7.0': {}
 
   agent-base@7.1.4: {}
 
@@ -1321,7 +1330,7 @@ snapshots:
 
   yaml@2.9.0: {}
 
-  youtube-transcript-plus@2.0.3: {}
+  youtube-transcript-plus@2.0.5: {}
 
   zod-to-json-schema@3.25.2(zod@4.4.3):
     dependencies:

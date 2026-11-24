@@ -1,6 +1,6 @@
 {
   "name": "@gowthamgts/pi-youtube-summary",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Summarize YouTube videos without adding transcripts to Pi's conversation context.",
   "type": "module",
   "license": "MIT",
@@ -19,7 +19,7 @@
     "test": "node --test tests/*.test.ts",
     "check:load": "pi --offline --no-extensions -e ./index.ts --list-models openai-codex"
   },
-  "dependencies": { "youtube-transcript-plus": "^2.0.3" },
+  "dependencies": { "youtube-transcript-plus": "^2.0.5" },
   "peerDependencies": { "@earendil-works/pi-coding-agent": "*" },
   "publishConfig": { "access": "public" },
   "pi": { "extensions": ["./index.ts"] }

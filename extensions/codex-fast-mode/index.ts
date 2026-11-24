@@ -7,7 +7,7 @@ export const FAST_MODE_SERVICE_TIER = "priority";
 const STATE_ENTRY_TYPE = "codex-fast-mode-state";
 const PREFERENCE_FILE_NAME = "codex-fast-mode.json";
 
-/** Status slot shown alongside the separate codex-usage quota status. */
+/** Status slot for the fast-mode indicator. */
 export const CODEX_FOOTER_STATUS_KEY = "codex-custom-footer";
 
 export interface ModelDescriptor {
